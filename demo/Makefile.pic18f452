@@ -1,0 +1,44 @@
+
+# This makefile uses Hi-Tech PICC-18 installed under Linux,
+# change the paths in the variables below as necessary.
+
+EXECUTABLE=PIC18ATA.HEX
+TARGET_PIC=18F452
+
+CC=/usr/hitech/bin/picc18
+CFLAGS=-DUSE_PICC18 -O -Zg3 -ICD -I. -I../picata/include -$(TARGET_PIC) -C
+LDFLAGS=-ICD -PSECTMAP -$(TARGET_PIC)
+
+vpath %.c ../picata/
+
+HEADERS = serial.h \
+    ../picata/include/ata.h \
+    ../picata/include/fat32.h \
+    ../picata/include/types.h
+
+SOURCES = ../picata/ata.c \
+    ../picata/fat32.c \
+    main.c \
+    serial.c
+
+OBJECTS = $(patsubst %.c, ./%.obj, $(notdir $(SOURCES)))
+LISTFILES = $(patsubst %.c, ./%.lst, $(SOURCES))
+
+all: $(OBJECTS) $(EXECUTABLE)
+	
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(LDFLAGS) -O$@ $(OBJECTS)
+
+#$(OBJECTS): $(HEADERS)
+
+./%.obj: %.c $(HEADERS)
+	$(CC) $(CFLAGS) $<
+
+debug:
+	@echo SOURCES: $(SOURCES)
+	@echo OBJECTS: $(OBJECTS)
+
+.PHONY: clean
+clean:
+	$(RM) -f $(OBJECTS) $(LISTFILES) $(EXECUTABLE) $(basename $(EXECUTABLE)).cod $(basename $(EXECUTABLE)).sym
+

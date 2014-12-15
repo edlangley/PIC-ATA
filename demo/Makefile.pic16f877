@@ -1,0 +1,46 @@
+
+# This makefile uses Hi-Tech PICC installed under Linux,
+# change the paths in the variables below as necessary.
+
+EXECUTABLE=PIC16ATA.HEX
+TARGET_PIC=16F877
+
+export HTC_PIC=/usr/hitech/picc_8.02PL1
+CC=/usr/hitech/picc_8.02PL1/bin/picc
+CFLAGS=-DUSE_PICC -O -Zg3 -ICD -I. -I../picata/include -$(TARGET_PIC) -C
+LDFLAGS=-ICD -PSECTMAP -$(TARGET_PIC)
+
+vpath %.c ../picata/
+
+HEADERS = serial.h \
+    ../picata/include/ata.h \
+    ../picata/include/fat32.h \
+    ../picata/include/types.h
+
+SOURCES = ../picata/ata.c \
+    main.c \
+    serial.c
+#    ../picata/fat32.c \
+
+OBJECTS = $(patsubst %.c, ./%.obj, $(notdir $(SOURCES)))
+LISTFILES = $(patsubst %.c, ./%.lst, $(notdir $(SOURCES)))
+DEPFILES = $(patsubst %.c, ./%.dep, $(SOURCES))
+
+all: $(OBJECTS) $(EXECUTABLE)
+	
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(LDFLAGS) -O$@ $(OBJECTS)
+
+#$(OBJECTS): $(HEADERS)
+
+./%.obj: %.c $(HEADERS)
+	$(CC) $(CFLAGS) $<
+
+debug:
+	@echo SOURCES: $(SOURCES)
+	@echo OBJECTS: $(OBJECTS)
+
+.PHONY: clean
+clean:
+	$(RM) -f $(OBJECTS) $(EXECUTABLE) $(LISTFILES) $(DEPFILES) $(EXECUTABLE) $(basename $(EXECUTABLE)).cod $(basename $(EXECUTABLE)).sym
+
