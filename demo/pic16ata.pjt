@@ -29,7 +29,7 @@ Include=
 Library=
 LinkerScript=
 [Target Data]
-FileList=MAIN.OBJ;SERIAL.OBJ;ATA.OBJ;FAT32.OBJ;
+FileList=MAIN.OBJ;SERIAL.OBJ;ATA.OBJ;
 BuildTool=PICC Linker
 OptionString=-MPLAB;-E+pic16ata.err;-ICD;
 AdditionalOptionString=-PSECT
@@ -86,7 +86,7 @@ OptionString=
 AdditionalOptionString=
 [FAT32.H]
 Type=5
-Path=C:\PICATA\PICATA\
+Path=
 FileList=
 BuildTool=
 OptionString=
@@ -190,3 +190,5 @@ AdditionalOptionString=
 1=c:\picata\picata\include\ata.h
 2=c:\picata\demo\main.c
 3=j:\my_docs\picmplab\pic18ata\main.c
+[Windows]
+0=0004 66 87 1788 681 9 0

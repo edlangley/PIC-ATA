@@ -39,7 +39,7 @@ Type=2
 Path=C:\PICATA\PICATA\
 FileList=ATA.C;
 BuildTool=PICC-18 Compiler
-OptionString=-O;-Zg3;-I./include;-DUSE_PICC18;-E+ata.err;
+OptionString=-O;-Zg3;-I./include;-DUSE_PICC18 -DFAT32_ENABLED;-E+ata.err;
 AdditionalOptionString=
 BuildRequired=0
 [ATA.C]
@@ -75,13 +75,13 @@ Type=2
 Path=C:\PICATA\PICATA\
 FileList=FAT32.C;
 BuildTool=PICC-18 Compiler
-OptionString=-O;-Zg3;-I./include;-DUSE_PICC18;-E+fat32.err;
+OptionString=-O;-Zg3;-I./include;-DUSE_PICC18 -DFAT32_ENABLED;-E+fat32.err;
 AdditionalOptionString=
 BuildRequired=0
 [FAT32.C]
 Type=4
 Path=C:\PICATA\PICATA\
-FileList=PLATFORM.H;STDLIB.H;STRING.H;TYPES.H;ATA.H;FAT32.H;
+FileList=PLATFORM.H;STRING.H;TYPES.H;ATA.H;FAT32.H;
 BuildTool=
 OptionString=
 AdditionalOptionString=
@@ -111,7 +111,7 @@ Type=2
 Path=
 FileList=MAIN.C;
 BuildTool=PICC-18 Compiler
-OptionString=-MPLAB;-O;-Zg3;-Bl;-CP16;-I. -I../picata/include;-DUSE_PICC18;-E+main.err;
+OptionString=-MPLAB;-O;-Zg3;-Bl;-CP16;-I. -I../picata/include;-DUSE_PICC18 -DFAT32_ENABLED;-E+main.err;
 AdditionalOptionString=
 BuildRequired=0
 [MAIN.C]
@@ -140,7 +140,7 @@ Type=2
 Path=
 FileList=SERIAL.C;
 BuildTool=PICC-18 Compiler
-OptionString=-O;-Zg3;-I. -I../picata/include;-DUSE_PICC18;-E+serial.err;
+OptionString=-O;-Zg3;-I. -I../picata/include;-DUSE_PICC18 -DFAT32_ENABLED;-E+serial.err;
 AdditionalOptionString=
 BuildRequired=0
 [SERIAL.C]
@@ -193,9 +193,6 @@ FileList=
 BuildTool=
 OptionString=
 AdditionalOptionString=
-[Windows]
-1=0004 88 116 1374 585 9 0
-0=0000  66 87 1352 556 9 0
 [mru-list]
 1=c:\picata\demo\main.c
 2=j:\my_docs\picmplab\pic18ata\main.c

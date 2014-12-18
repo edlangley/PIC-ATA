@@ -20,7 +20,6 @@ HEADERS = serial.h \
 SOURCES = ../picata/ata.c \
     main.c \
     serial.c
-#    ../picata/fat32.c \
 
 OBJECTS = $(patsubst %.c, ./%.obj, $(notdir $(SOURCES)))
 LISTFILES = $(patsubst %.c, ./%.lst, $(notdir $(SOURCES)))
@@ -42,5 +41,5 @@ debug:
 
 .PHONY: clean
 clean:
-	$(RM) -f $(OBJECTS) $(EXECUTABLE) $(LISTFILES) $(DEPFILES) $(EXECUTABLE) $(basename $(EXECUTABLE)).cod $(basename $(EXECUTABLE)).sym
+	$(RM) -f $(OBJECTS) $(EXECUTABLE) $(LISTFILES) $(DEPFILES) $(EXECUTABLE) $(basename $(EXECUTABLE)).cod $(EXECUTABLE)).cof $(basename $(EXECUTABLE)).sym
 

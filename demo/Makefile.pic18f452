@@ -6,7 +6,7 @@ EXECUTABLE=PIC18ATA.HEX
 TARGET_PIC=18F452
 
 CC=/usr/hitech/bin/picc18
-CFLAGS=-DUSE_PICC18 -O -Zg3 -ICD -I. -I../picata/include -$(TARGET_PIC) -C
+CFLAGS=-DUSE_PICC18 -DFAT32_ENABLED -O -Zg3 -ICD -I. -I../picata/include -$(TARGET_PIC) -C
 LDFLAGS=-ICD -PSECTMAP -$(TARGET_PIC)
 
 vpath %.c ../picata/
