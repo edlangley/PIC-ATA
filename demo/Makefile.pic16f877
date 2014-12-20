@@ -41,5 +41,5 @@ debug:
 
 .PHONY: clean
 clean:
-	$(RM) -f $(OBJECTS) $(EXECUTABLE) $(LISTFILES) $(DEPFILES) $(EXECUTABLE) $(basename $(EXECUTABLE)).cod $(EXECUTABLE)).cof $(basename $(EXECUTABLE)).sym
+	$(RM) -f $(OBJECTS) $(EXECUTABLE) $(LISTFILES) $(DEPFILES) $(EXECUTABLE) $(basename $(EXECUTABLE)).cod $(basename $(EXECUTABLE)).cof $(basename $(EXECUTABLE)).sym
 
