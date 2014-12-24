@@ -14,7 +14,7 @@ Description.. Low level stdin/stdout code for the printf() and other
 void InitComms()
 {
     RX_PIN = 1;
-    TX_PIN = 1;
+    TX_PIN = 0;
     SPBRG = DIVIDER;
     RCSTA = (NINE_BITS|0x90);
     TXSTA = (SPEED|NINE_BITS|0x20);
@@ -23,8 +23,9 @@ void InitComms()
 /* PUTCH() - outputs a byte to the serial port */
 void putch(char byte)
 {
-    while(!TXIF);     /* set when register is empty */
-        TXREG = byte; /* output one byte */
+    while(!TXIF)  /* set when register is empty */
+        ;
+    TXREG = byte; /* output one byte */
 }
 
 /* filler for now */
