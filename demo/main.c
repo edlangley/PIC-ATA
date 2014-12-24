@@ -17,16 +17,35 @@ void main(void)
     int8_t retval;
 
     InitComms();
+
     printf("PIC ATA interface test\n\r");
 
-    ATA_Init(ATA_MASTER);
-    retval = ATA_ReadDriveInfo();
-
-#if defined(ATA_USE_ID)
+    printf("Init ATA: ");
+    retval = ATA_Init(ATA_MASTER);
     switch(retval)
     {
     case ATA_OK:
-        printf("Drive model: %s\n\rRevision: %s\n\rSerial #:%s\n\rCylinders: %ud\n\rHeads: %ud\n\rSectors: %ud\n\r",
+        printf("ATA master initialised\n\r");
+        break;
+    case ATA_RDY_TIMEOUT:
+        printf("ATA RDY timeout\n\r");
+        break;
+    case ATA_BSY_TIMEOUT:
+        printf("ATA BSY timeout\n\r");
+        break;
+    case ATA_DRQ_TIMEOUT:
+        printf("ATA DRQ timeout\n\r");
+        break;
+    }
+
+#if defined(ATA_USE_ID)
+    printf("Read drive info: ");
+    retval = ATA_ReadDriveInfo();
+
+    switch(retval)
+    {
+    case ATA_OK:
+        printf("\n\r\tDrive model: %s\n\r\tRevision: %s\n\r\tSerial #:%s\n\r\tCylinders: %ud\n\r\tHeads: %ud\n\r\tSectors: %ud\n\r",
         ATA_GetInfoModel(),
         ATA_GetInfoRev(),
         ATA_GetInfoSerialNum(),
@@ -35,10 +54,10 @@ void main(void)
         ATA_GetInfoNumSectors());
         break;
     case ATA_BSY_TIMEOUT:
-        printf("ATA timed out on BSY\n\r");
+        printf("ATA BSY timeout\n\r");
         break;
     case ATA_DRQ_TIMEOUT:
-        printf("ATA timed out on DRQ\n\r");
+        printf("ATA DRQ timeout\n\r");
         break;
     }
 #endif
