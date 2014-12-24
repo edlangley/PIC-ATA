@@ -6,7 +6,6 @@ Description.. Driver to operate an ATA interface on a PIC MCU
 -------------------------------------------------------------------*/
 
 #include "platform.h"
-#include "types.h"
 #include "ata.h"
 
 
@@ -52,15 +51,19 @@ Set bits to activate signals.
 #define PIC_BITNUM_8255_RD               0
 #define PIC_BITNUM_8255_WR               1
 #define PIC_BITNUM_8255_CS               2
+
+#define PIN_nENABLE                      BIT_CLR
+#define PIN_nDISABLE                     BIT_SET
 /* end of changeable settings */
 
-
+#if 0
 static BIT Pin8255nCS                    @ PORTBIT(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 static BIT Pin8255nRD                    @ PORTBIT(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
 static BIT Pin8255nWR                    @ PORTBIT(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
 static BIT Tris8255nCS                   @ PORTBIT(PIC_TRIS_8255_CS, PIC_BITNUM_8255_CS);
 static BIT Tris8255nRD                   @ PORTBIT(PIC_TRIS_8255_RDWR, PIC_BITNUM_8255_RD);
 static BIT Tris8255nWR                   @ PORTBIT(PIC_TRIS_8255_RDWR, PIC_BITNUM_8255_WR);
+#endif
 
 /* PIC ADCON settings */
 #define ALL_DIGITAL                      0x06
@@ -226,16 +229,20 @@ int8_t ATA_Init(uint8_t drivenumber)
     ADCON1 = ALL_DIGITAL;
 
     /* set control signals to 8255 to be outputs */
+#if 0
     Pin8255nCS = N_DISABLE;
     Tris8255nCS = BIT_OUTPUT;
     Tris8255nRD = BIT_OUTPUT;
     Pin8255nRD = N_DISABLE;
     Tris8255nWR = BIT_OUTPUT;
     Pin8255nWR = N_DISABLE;
-
-    // DEBUG:
-    PIC_TRIS_8255_CS &= ~(0x01 << PIC_BITNUM_8255_CS);
-    PIC_PORT_8255_CS |= (0x01 << PIC_BITNUM_8255_CS);
+#endif
+    PIN_OUTPUT(PIC_TRIS_8255_CS, PIC_BITNUM_8255_CS);
+    PIN_nDISABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
+    PIN_OUTPUT(PIC_TRIS_8255_RDWR, PIC_BITNUM_8255_RD);
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
+    PIN_OUTPUT(PIC_TRIS_8255_RDWR, PIC_BITNUM_8255_WR);
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
 
     /* address bits to 8255 as outputs */
     PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
@@ -341,6 +348,7 @@ int8_t ATA_ReadDriveInfo()
             return(ATA_BSY_TIMEOUT);
         }
     }
+#if 0
     /* wait for DRQ bit set */
     i = ATA_TIMEOUT_VAL;
     while((getataregbyte(ATA_ADDR_STATUS) & ATA_STATUS_DRQ) == 0)
@@ -350,6 +358,7 @@ int8_t ATA_ReadDriveInfo()
             return(ATA_DRQ_TIMEOUT);
         }
     }
+#endif
 
     /* read the useful drive data to the union */
     for(i=0; i < HDINFO_SIZE_WORDS; i++)
@@ -533,9 +542,9 @@ uint8_t read8255port(uint8_t portAddr)
 {
     uint8_t readValue;
 
-    Pin8255nRD = N_DISABLE;
-    Pin8255nWR = N_DISABLE;
-    Pin8255nCS = N_ENABLE;
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
+    PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
     /* write to control word to choose
      * direction for specified 8255 port
@@ -559,28 +568,29 @@ uint8_t read8255port(uint8_t portAddr)
         /* Hmmm. */
         break;
     }
-    Pin8255nWR = N_ENABLE;
+    PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIC_PORT_8255_DATA = Current8255CtrlWd;
-    Pin8255nWR = N_DISABLE;
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
 
     /* now read from the specified 8255 port */
     PIC_TRIS_8255_DATA = PORT_INPUT;
     PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
     PIC_PORT_8255_ADDRESS |= portAddr;
 
-    Pin8255nRD = N_ENABLE;
+    PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
     readValue = PIC_PORT_8255_DATA;
-    Pin8255nRD = N_DISABLE;
-    Pin8255nCS = N_DISABLE;
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
+
+    PIN_nDISABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
     return readValue;
 }
 
 void write8255port(uint8_t portAddr, uint8_t value)
 {
-    Pin8255nRD = N_DISABLE;
-    Pin8255nWR = N_DISABLE;
-    Pin8255nCS = N_ENABLE;
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
+    PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
     /* write to control word to choose
      * direction for specified 8255 port
@@ -604,19 +614,20 @@ void write8255port(uint8_t portAddr, uint8_t value)
         /* Hmmm. */
         break;
     }
-    Pin8255nWR = N_ENABLE;
+    PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIC_PORT_8255_DATA = Current8255CtrlWd;
-    Pin8255nWR = N_DISABLE;
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
 
     /* now write to the specified 8255 port */
     PIC_TRIS_8255_DATA = PORT_OUTPUT;
     PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
     PIC_PORT_8255_ADDRESS |= portAddr;
 
-    Pin8255nWR = N_ENABLE;
+    PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIC_PORT_8255_DATA = value;
-    Pin8255nWR = N_DISABLE;
-    Pin8255nCS = N_DISABLE;
+    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
+
+    PIN_nDISABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 }
 
 void resetata()

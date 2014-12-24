@@ -8,11 +8,9 @@ Description.. Main code to operate an ATA interface and FAT32 FS on
 
 #include "platform.h"
 #include <stdio.h>
-#include "types.h"
 #include "ata.h"
 #include "serial.h"
 #include "fat32.h"
-
 
 void main(void)
 {

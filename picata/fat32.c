@@ -8,7 +8,6 @@ Description.. Driver to read a FAT32 FS over an ATA interface on a
 
 #include "platform.h"
 #include <string.h>
-#include "types.h"
 #include "ata.h"
 #include "fat32.h"
 
