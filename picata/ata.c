@@ -56,14 +56,6 @@ Set bits to activate signals.
 #define PIN_nDISABLE                     BIT_SET
 /* end of changeable settings */
 
-#if 0
-static BIT Pin8255nCS                    @ PORTBIT(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
-static BIT Pin8255nRD                    @ PORTBIT(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
-static BIT Pin8255nWR                    @ PORTBIT(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
-static BIT Tris8255nCS                   @ PORTBIT(PIC_TRIS_8255_CS, PIC_BITNUM_8255_CS);
-static BIT Tris8255nRD                   @ PORTBIT(PIC_TRIS_8255_RDWR, PIC_BITNUM_8255_RD);
-static BIT Tris8255nWR                   @ PORTBIT(PIC_TRIS_8255_RDWR, PIC_BITNUM_8255_WR);
-#endif
 
 /* PIC ADCON settings */
 #define ALL_DIGITAL                      0x06
@@ -108,28 +100,8 @@ static BIT Tris8255nWR                   @ PORTBIT(PIC_TRIS_8255_RDWR, PIC_BITNU
 #define ATA_CTRL_BIT_RESET               0x80
 /* end of changeable settings */
 
+
 #define ATA_CTRL_BIT_ADDR(a)             ((a & 0x07) << ATA_CTRL_BITOFFSET_ADDRESS)
-
-#if 0
-/* ATA register addresses - read access */
-/* CFv3 spec uses actual logic levels in address table,
-   regardless of whether signal is active low or not
-*/
-#define ATA_ADDR_RD_DATA                 0x08
-#define ATA_ADDR_RD_ERROR                0x09
-#define ATA_ADDR_RD_NSECTORS             0x0A
-#define ATA_ADDR_RD_SECTOR               0x0B
-#define ATA_ADDR_RD_LCYL                 0x0C
-#define ATA_ADDR_RD_HCYL                 0x0D
-#define ATA_ADDR_RD_SELECT               0x0E
-#define ATA_ADDR_RD_STATUS               0x0F
-#define ATA_ADDR_RD_ALTSTATUS            0x16
-
-/* ATA register addresses - write access */
-#define ATA_ADDR_WR_FEATURE              ATA_ADDR_RD_ERROR_REG
-#define ATA_ADDR_WR_COMMAND              ATA_ADDR_RD_STATUS_REG
-#define ATA_ADDR_WR_CONTROL              ATA_ADDR_RD_ALTSTATUS_REG
-#endif
 
 /* ATA read and write addresses */
 #define ATA_ADDR_DATA                    (ATA_CTRL_BIT_CS0 | ATA_CTRL_BIT_ADDR(0x00))
@@ -149,19 +121,11 @@ static BIT Tris8255nWR                   @ PORTBIT(PIC_TRIS_8255_RDWR, PIC_BITNU
 
 
 /** ATA register bit masks **/
-/* drive info fields */
-//#define EIDE_VALID                       0x02
-//#define PIO_MODE3_MASK                   0x01
-//#define PIO_MODE4_MASK                   0x02
-//#define ATA_PIO_MODE3                    3
-//#define ATA_PIO_MODE4                    4
-
 /* Select Reg */
 #define ATA_SELECT_MASTER                0x00
 #define ATA_SELECT_SLAVE                 0x10
 #define ATA_SELECT_LBA                   0xe0 /* The actual LBA bit is 0x40 but
                                                  bits 7 and 5 should remain set */
-
 /* Status Reg */
 #define ATA_STATUS_BSY                   0x80
 #define ATA_STATUS_DRDY                  0x40
