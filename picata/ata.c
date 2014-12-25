@@ -176,6 +176,7 @@ uint8_t CurrentDrv = 0;
 uint32_t CurrentLBAAddr = 0;
 
 /* Internal function prototypes */
+void set8255DataPortsDir(uint8_t dir);
 uint8_t read8255Port(uint8_t portAddr);
 void write8255Port(uint8_t portAddr, uint8_t value);
 void setAtaRegByte(uint8_t ataRegAddr, uint8_t data);
@@ -499,45 +500,44 @@ int8_t ATA_ReadSectors(uint32_t lba, uint16_t *buffer, uint8_t count)
 
 
 /* Internal functions */
-uint8_t read8255Port(uint8_t portAddr)
+void set8255DataPortsDir(uint8_t dir)
 {
-    uint8_t readValue;
-
-    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
-    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
-    /* write to control word to choose
-     * direction for specified 8255 port
-     */
+    /* address the 8255 control word */
     PIC_TRIS_8255_DATA = PORT_OUTPUT;
     PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
     PIC_PORT_8255_ADDRESS |= _8255_ADDR_CTRLWD;
 
-    switch(portAddr)
+    if(dir == PORT_OUTPUT)
     {
-    case _8255_ADDR_ATA_DATALO:
-        Current8255CtrlWd |= _8255_CTRLWD_ATA_DATALO_RD;
-                break;
-    case _8255_ADDR_ATA_DATAHI:
-        Current8255CtrlWd |= _8255_CTRLWD_ATA_DATAHI_RD;
-                break;
-    case _8255_ADDR_ATA_CTRL:
-        Current8255CtrlWd |= _8255_CTRLWD_ATA_CTRL_RD;
-        break;
-    default:
-        /* Hmmm. */
-        break;
+        Current8255CtrlWd &= ~(_8255_CTRLWD_ATA_DATALO_RD | _8255_CTRLWD_ATA_DATAHI_RD);
     }
+    else
+    {
+        Current8255CtrlWd |= (_8255_CTRLWD_ATA_DATALO_RD | _8255_CTRLWD_ATA_DATAHI_RD);
+    }
+
+    /* do the write */
     PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIC_PORT_8255_DATA = Current8255CtrlWd;
     PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
 
-    /* now read from the specified 8255 port */
+    PIN_nDISABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
+}
+
+uint8_t read8255Port(uint8_t portAddr)
+{
+    uint8_t readValue;
+
+    PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
+
+    /* address the correct 8255 port */
     PIC_TRIS_8255_DATA = PORT_INPUT;
     PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
     PIC_PORT_8255_ADDRESS |= portAddr;
 
+    /* do the read */
     PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
     readValue = PIC_PORT_8255_DATA;
     PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
@@ -549,41 +549,14 @@ uint8_t read8255Port(uint8_t portAddr)
 
 void write8255Port(uint8_t portAddr, uint8_t value)
 {
-    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_RD);
-    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
-    /* write to control word to choose
-     * direction for specified 8255 port
-     */
-    PIC_TRIS_8255_DATA = PORT_OUTPUT;
-    PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
-    PIC_PORT_8255_ADDRESS |= _8255_ADDR_CTRLWD;
-
-    switch(portAddr)
-    {
-    case _8255_ADDR_ATA_DATALO:
-        Current8255CtrlWd &= ~_8255_CTRLWD_ATA_DATALO_RD;
-                break;
-    case _8255_ADDR_ATA_DATAHI:
-        Current8255CtrlWd &= ~_8255_CTRLWD_ATA_DATAHI_RD;
-                break;
-    case _8255_ADDR_ATA_CTRL:
-        Current8255CtrlWd &= ~_8255_CTRLWD_ATA_CTRL_RD;
-        break;
-    default:
-        /* Hmmm. */
-        break;
-    }
-    PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
-    PIC_PORT_8255_DATA = Current8255CtrlWd;
-    PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
-
-    /* now write to the specified 8255 port */
+    /* address the correct 8255 port */
     PIC_TRIS_8255_DATA = PORT_OUTPUT;
     PIC_PORT_8255_ADDRESS &= _8255_ADDR_CLEAR;
     PIC_PORT_8255_ADDRESS |= portAddr;
 
+    /* do the write */
     PIN_nENABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
     PIC_PORT_8255_DATA = value;
     PIN_nDISABLE(PIC_PORT_8255_RDWR, PIC_BITNUM_8255_WR);
@@ -594,6 +567,8 @@ void write8255Port(uint8_t portAddr, uint8_t value)
 void setAtaRegByte(uint8_t ataRegAddr, uint8_t data)
 {
     volatile uint32_t i;
+
+    set8255DataPortsDir(PORT_OUTPUT);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
     write8255Port(_8255_ADDR_ATA_DATALO, data);
@@ -609,6 +584,8 @@ void setAtaRegByte(uint8_t ataRegAddr, uint8_t data)
 void setAtaRegWord(uint8_t ataRegAddr, uint16_t data)
 {
     volatile uint32_t i;
+
+    set8255DataPortsDir(PORT_OUTPUT);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
     write8255Port(_8255_ADDR_ATA_DATALO, (uint8_t)(data & 0x00FF));
@@ -626,6 +603,8 @@ uint8_t getAtaRegByte(uint8_t ataRegAddr)
 {
     uint8_t dataread;
 
+    set8255DataPortsDir(PORT_INPUT);
+
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr | ATA_CTRL_BIT_RD);
 
@@ -639,6 +618,8 @@ uint8_t getAtaRegByte(uint8_t ataRegAddr)
 uint16_t getAtaRegWord(uint8_t ataRegAddr)
 {
     uint16_t datareadlow, datareadhigh;
+
+    set8255DataPortsDir(PORT_INPUT);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr | ATA_CTRL_BIT_RD);
