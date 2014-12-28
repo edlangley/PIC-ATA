@@ -229,6 +229,7 @@ int8_t ATA_Init(uint8_t drivenumber)
     i = ATA_TIMEOUT_VAL;
     while(!(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_DRDY))
     {
+        DELAY_MS(5);
         if(--i==0)
         {
             return(ATA_RDY_TIMEOUT);
@@ -239,6 +240,7 @@ int8_t ATA_Init(uint8_t drivenumber)
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
+        DELAY_MS(5);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
@@ -258,6 +260,7 @@ int8_t ATA_Init(uint8_t drivenumber)
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
+        DELAY_MS(5);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
@@ -293,6 +296,7 @@ int8_t ATA_ReadDriveInfo()
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
+        DELAY_MS(5);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
@@ -305,22 +309,23 @@ int8_t ATA_ReadDriveInfo()
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
+        DELAY_MS(5);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
         }
     }
-#if 0
+
     /* wait for DRQ bit set */
     i = ATA_TIMEOUT_VAL;
     while((getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_DRQ) == 0)
     {
+        DELAY_MS(5);
         if(--i==0)
         {
             return(ATA_DRQ_TIMEOUT);
         }
     }
-#endif
 
     /* read the useful drive data to the union */
     for(i=0; i < HDINFO_SIZE_WORDS; i++)

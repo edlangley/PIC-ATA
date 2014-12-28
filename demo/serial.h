@@ -6,10 +6,12 @@ Description.. Low level stdin/stdout code for the printf() and other
 ............. string handling functions in the Hitech library.
 -------------------------------------------------------------------*/
 
+#include "platform.h"
+
 /* Comms setup */
 #define BAUD                             9600
 #define NINE                             0          /* Use 9bit communication? FALSE=8bit */
-#define FOSC                             3686000L
+#define FOSC                             _XTAL_FREQ
 #define HIGH_SPEED                       1
 
 #ifdef USE_HSPLL  /* could change this in CFLAGS */
