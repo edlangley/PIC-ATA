@@ -107,7 +107,10 @@ int8_t FAT32_Mount(uint8_t drvnum)
     ClusterBeginLBA = partitionlbabegin + bpbrsvdseccnt + (bpbnumfats * bpbsecsperfat);
 
     /* set up the root dir .... */
-    ATA_SetLBAForRead(CLUSTERNUMTOLBA(RootDirFirstCluster));
+    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(RootDirFirstCluster))) != ATA_OK)
+    {
+        return retval;
+    }
     CurrentDirFirstCluster = RootDirFirstCluster;
     CurrentDirEntryNum = 0;
     CurrentDirSectorNum = 0;
@@ -171,13 +174,18 @@ int8_t FAT32_DirOpen(uint8_t *dirname)
 
 int8_t FAT32_DirLoadNextEntry()
 {
-    uint16_t wordread;
     uint8_t i, j;
+    int8_t retval;
+    uint16_t wordread;
     uint32_t templong;
 
     /* set disk reading position back to file position after being changed
        elsewhere */
-    ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum);
+    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
+    {
+        return retval;
+    }
+
     ATA_SkipWords(DIR_REC_LENGTH_WORDS * CurrentDirEntryNum);
 
     CurrentDirEntryName[0] = DIRENTRY_NAMECHAR_UNUSED;
@@ -192,7 +200,10 @@ int8_t FAT32_DirLoadNextEntry()
             if(CurrentDirSectorNum >= SectorsPerCluster)
             {
                 /* look up next cluster in FAT */
-                ATA_SetLBAForRead(FatBeginLBA + (CurrentDirClusterNum >> 7) );
+                if((retval = ATA_SetLBAForRead(FatBeginLBA + (CurrentDirClusterNum >> 7))) != ATA_OK)
+                {
+                    return retval;
+                }
                 ATA_SkipWords(CurrentDirClusterNum & 0x0000007F);
 
                 CurrentDirClusterNum = (uint32_t)ATA_ReadWord();
@@ -200,13 +211,19 @@ int8_t FAT32_DirLoadNextEntry()
                 CurrentDirClusterNum |= (templong << 16);
 
                 CurrentDirSectorNum = 0;
-                ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum));
+                if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum))) != ATA_OK)
+                {
+                    return retval;
+                }
             }
             else
             {
                 /* read the next sector */
                 CurrentDirSectorNum++;
-                ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum);
+                if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
+                {
+                    return retval;
+                }
             }
         }
 
@@ -297,8 +314,9 @@ int8_t FAT32_FileOpen(FD *fd, uint8_t *filename)
 
 int8_t FAT32_FileRead(FD *fd, uint16_t numBytes, uint8_t *dataBuf)
 {
-    int i;
+    uint16_t i;
     uint32_t templong;
+    int8_t retval;
 
     for(i = 0; i < numBytes; i++)
     {
@@ -306,7 +324,10 @@ int8_t FAT32_FileRead(FD *fd, uint16_t numBytes, uint8_t *dataBuf)
            back to current file position */
         if(ATA_CurrentLBAAddr() != (CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum))
         {
-            ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum);
+            if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum)) != ATA_OK)
+            {
+                return retval;
+            }
             ATA_SkipWords(fd->currentsectorpos);
         }
 
@@ -320,7 +341,10 @@ int8_t FAT32_FileRead(FD *fd, uint16_t numBytes, uint8_t *dataBuf)
                 if(fd->currentsectornum >= SectorsPerCluster)
                 {
                     /* look up next cluster in FAT */
-                    ATA_SetLBAForRead(FatBeginLBA + (fd->currentclusternum >> 7) );
+                    if((retval = ATA_SetLBAForRead(FatBeginLBA + (fd->currentclusternum >> 7))) != ATA_OK)
+                    {
+                        return retval;
+                    }
                     ATA_SkipWords(fd->currentclusternum & 0x0000007F);
 
                     fd->currentclusternum = (uint32_t)ATA_ReadWord();
@@ -334,14 +358,20 @@ int8_t FAT32_FileRead(FD *fd, uint16_t numBytes, uint8_t *dataBuf)
 
                     fd->currentsectornum = 0;
                     fd->currentsectorpos = 0;
-                    ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum));
+                    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum))) != ATA_OK)
+                    {
+                        return retval;
+                    }
                 }
                 else
                 {
                     /* read the next sector */
                     fd->currentsectornum++;
                     fd->currentsectorpos = 0;
-                    ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum);
+                    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum)) != ATA_OK)
+                    {
+                        return retval;
+                    }
                 }
 
             }

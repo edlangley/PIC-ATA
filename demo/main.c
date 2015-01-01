@@ -66,10 +66,17 @@ void main(void)
 #endif
 
 #ifdef FAT32_ENABLED
-    if(FAT32_Mount(0) == FAT32_OK)
+    printf("Mount FAT32: ");
+    if((retval = FAT32_Mount(0)) != FAT32_OK)
     {
-        printf("FAT32 filesystem mounted succesfully\n\r");
-        while((retval = FAT32_DirLoadNextEntry()) != FAT32_EODIRENTRYS)
+        printf("Error %d\n\r", retval);
+    }
+    else
+    {
+        printf("OK\n\r");
+
+        printf("Root dir contents:\n\r");
+        while((retval = FAT32_DirLoadNextEntry()) == FAT32_OK)
         {
             printf("%s", FAT32_DirEntryName());
             if(retval == FAT32_DIRENTRY_IS_DIR)
@@ -81,11 +88,10 @@ void main(void)
                 printf("\n\r");
             }
         }
-        printf("End of directory records\n\r");
-    }
-    else
-    {
-        printf("Error mounting FAT32 filesystem\n\r");
+        if(retval != FAT32_EODIRENTRYS)
+        {
+            printf("Error %d loading next dir record\n\r", retval);
+        }
     }
 #endif
 }
