@@ -185,7 +185,9 @@ uint8_t getAtaRegByte(uint8_t ataRegAddr);
 uint16_t getAtaRegWord(uint8_t ataRegAddr);
 void resetAta();
 void writeLba(uint32_t lba);
-
+#ifdef ATA_USE_WIRINGTEST
+void ataWiringTest();
+#endif
 
 /* API functions */
 
@@ -217,6 +219,15 @@ int8_t ATA_Init(uint8_t drivenumber)
      * be an output port, so leave those bits cleared for output */
     Current8255CtrlWd = _8255_CTRLWD_MODESET;
 
+#ifdef ATA_USE_WIRINGTEST
+    ataWiringTest();
+#endif
+
+    write8255Port(_8255_ADDR_ATA_DATALO, 0);
+    write8255Port(_8255_ADDR_ATA_DATAHI, 0);
+    write8255Port(_8255_ADDR_ATA_CTRL, 0);
+    DELAY_MS(1);
+
     /* now talk to the ATA device */
     resetAta();
 
@@ -229,7 +240,7 @@ int8_t ATA_Init(uint8_t drivenumber)
     i = ATA_TIMEOUT_VAL;
     while(!(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_DRDY))
     {
-        DELAY_MS(5);
+        DELAY_MS(1);
         if(--i==0)
         {
             return(ATA_RDY_TIMEOUT);
@@ -240,7 +251,7 @@ int8_t ATA_Init(uint8_t drivenumber)
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
-        DELAY_MS(5);
+        DELAY_MS(1);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
@@ -251,16 +262,13 @@ int8_t ATA_Init(uint8_t drivenumber)
     setAtaRegByte(ATA_ADDR_CONTROL, ATA_CONTROL_INT_DISABLE);
 
     ATA_DriveSelect(drivenumber);
-
     setAtaRegByte(ATA_ADDR_NSECTORS, ATA_NSECTORS_SECS_PER_TRACK);
-
     setAtaRegByte(ATA_ADDR_COMMAND, ATA_CMD_INIT);
-
     /* wait for BSY bit clear */
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
-        DELAY_MS(5);
+        DELAY_MS(1);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
@@ -288,28 +296,44 @@ void ATA_DriveSelect(uint8_t drivenumber)
     CurrentDrv = drivenumber;
 }
 
+#define HD_INFO_DBG
+#ifdef HD_INFO_DBG
+ #include <stdio.h>
+#endif
+
 int8_t ATA_ReadDriveInfo()
 {
-    uint32_t	i;
+    uint32_t i;
 
     /* wait for BSY bit clear */
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
-        DELAY_MS(5);
+        DELAY_MS(1);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
         }
     }
 
-    setAtaRegByte(ATA_ADDR_COMMAND, ATA_CMD_ID);
+    ATA_DriveSelect(CurrentDrv);
+    /* wait for RDY bit set */
+    i = ATA_TIMEOUT_VAL;
+    while(!(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_DRDY))
+    {
+        DELAY_MS(1);
+        if(--i==0)
+        {
+            return(ATA_RDY_TIMEOUT);
+        }
+    }
 
+    setAtaRegByte(ATA_ADDR_COMMAND, ATA_CMD_ID);
     /* wait for BSY bit clear */
     i = ATA_TIMEOUT_VAL;
     while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
     {
-        DELAY_MS(5);
+        DELAY_MS(1);
         if(--i==0)
         {
             return(ATA_BSY_TIMEOUT);
@@ -320,7 +344,7 @@ int8_t ATA_ReadDriveInfo()
     i = ATA_TIMEOUT_VAL;
     while((getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_DRQ) == 0)
     {
-        DELAY_MS(5);
+        DELAY_MS(1);
         if(--i==0)
         {
             return(ATA_DRQ_TIMEOUT);
@@ -331,40 +355,43 @@ int8_t ATA_ReadDriveInfo()
     for(i=0; i < HDINFO_SIZE_WORDS; i++)
     {
 #if defined(ATA_USE_ID)
+        uint16_t idword;
+        idword = getAtaRegWord(ATA_ADDR_DATA);
+
+ #ifdef HD_INFO_DBG
+        printf(" 0x%02X 0x%02X, %c%c\n\r", (idword >> 8), (idword & 0x00FF), (idword >> 8), (idword & 0x00FF));
+ #endif
+
         switch(i)
         {
         case ATA_DRVINFOWORD_CYLS:
-            hd0info.cyls = getAtaRegWord(ATA_ADDR_DATA);
+            hd0info.cyls = idword;
             break;
         case ATA_DRVINFOWORD_HEADS:
-            hd0info.heads = getAtaRegWord(ATA_ADDR_DATA);
+            hd0info.heads = idword;
             break;
         case ATA_DRVINFOWORD_SECTORS:
-            hd0info.sectors = getAtaRegWord(ATA_ADDR_DATA);
+            hd0info.sectors = idword;
             break;
         default:
             if( (i>= ATA_DRVINFOWORD_MODELSTART) &&
                 (i < (ATA_DRVINFOWORD_MODELSTART + ATA_DRVINFOWORD_MODELLENGTH)) )
             {
-                hd0info.model[i-ATA_DRVINFOWORD_MODELSTART] = getAtaRegWord(ATA_ADDR_DATA);
+                hd0info.model[i-ATA_DRVINFOWORD_MODELSTART] = idword;
             }
             else if( (i>= ATA_DRVINFOWORD_REVSTART) &&
                      (i < (ATA_DRVINFOWORD_REVSTART + ATA_DRVINFOWORD_REVLENGTH)) )
             {
-                hd0info.fw_rev[i-ATA_DRVINFOWORD_REVSTART] = getAtaRegWord(ATA_ADDR_DATA);
+                hd0info.fw_rev[i-ATA_DRVINFOWORD_REVSTART] = idword;
             }
             else if( (i>= ATA_DRVINFOWORD_SERNUMSTART) &&
                      (i < (ATA_DRVINFOWORD_SERNUMSTART + ATA_DRVINFOWORD_SERNUMLENGTH)) )
             {
-                hd0info.fw_rev[i-ATA_DRVINFOWORD_SERNUMSTART] = getAtaRegWord(ATA_ADDR_DATA);
-            }
-            else
-            {
-                getAtaRegWord(ATA_ADDR_DATA);
+                hd0info.fw_rev[i-ATA_DRVINFOWORD_SERNUMSTART] = idword;
             }
         }
 #else
-        getAtaRegWord(ATA_DATA_REG);
+        getAtaRegWord(ATA_ADDR_DATA);
 #endif
     }
 
@@ -503,7 +530,6 @@ int8_t ATA_ReadSectors(uint32_t lba, uint16_t *buffer, uint8_t count)
     return(ATA_OK);
 }
 
-
 /* Internal functions */
 void set8255DataPortsDir(uint8_t dir)
 {
@@ -571,37 +597,29 @@ void write8255Port(uint8_t portAddr, uint8_t value)
 
 void setAtaRegByte(uint8_t ataRegAddr, uint8_t data)
 {
-    volatile uint32_t i;
-
     set8255DataPortsDir(PORT_OUTPUT);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
     write8255Port(_8255_ADDR_ATA_DATALO, data);
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr | ATA_CTRL_BIT_WR);
 
-    i = ATA_TIMEOUT_VAL;
-    while(i)
-        i--;
-
+    /* data latched into drive when DIOW- de-asserted */
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
+    write8255Port(_8255_ADDR_ATA_CTRL, 0);
 }
 
 void setAtaRegWord(uint8_t ataRegAddr, uint16_t data)
 {
-    volatile uint32_t i;
-
     set8255DataPortsDir(PORT_OUTPUT);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
-    write8255Port(_8255_ADDR_ATA_DATALO, (uint8_t)(data & 0x00FF));
-    write8255Port(_8255_ADDR_ATA_DATAHI, (uint8_t)(data >> 8));
+    write8255Port(_8255_ADDR_ATA_DATALO, (uint8_t)(data >> 8));
+    write8255Port(_8255_ADDR_ATA_DATAHI, (uint8_t)(data & 0x00FF));
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr | ATA_CTRL_BIT_WR);
 
-    i = ATA_TIMEOUT_VAL;
-    while(i)
-        i--;
-
+    /* data latched into drive when DIOW- de-asserted */
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
+    write8255Port(_8255_ADDR_ATA_CTRL, 0);
 }
 
 uint8_t getAtaRegByte(uint8_t ataRegAddr)
@@ -616,6 +634,7 @@ uint8_t getAtaRegByte(uint8_t ataRegAddr)
     dataread = read8255Port(_8255_ADDR_ATA_DATALO);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
+    write8255Port(_8255_ADDR_ATA_CTRL, 0);
 
     return dataread;
 }
@@ -633,21 +652,18 @@ uint16_t getAtaRegWord(uint8_t ataRegAddr)
     datareadhigh = read8255Port(_8255_ADDR_ATA_DATAHI);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
+    write8255Port(_8255_ADDR_ATA_CTRL, 0);
 
     return ((datareadlow << 8) | (datareadhigh & 0x00FF));
 }
 
 void resetAta()
 {
-    volatile uint32_t i;
-
     write8255Port(_8255_ADDR_ATA_CTRL, ATA_CTRL_BIT_RESET);
-
-    i = ATA_TIMEOUT_VAL;
-    while(i)
-        i--;
+    DELAY_MS(20);
 
     write8255Port(_8255_ADDR_ATA_CTRL, 0);
+    DELAY_MS(5);
 }
 
 void writeLba(uint32_t lba)
@@ -682,3 +698,24 @@ void writeLba(uint32_t lba)
     /* update active LBA address */
     CurrentLBAAddr = lba;
 }
+
+#ifdef ATA_USE_WIRINGTEST
+void ataWiringTest()
+{
+    uint8_t portAddr, bitIx, dataOut;
+
+    set8255DataPortsDir(PORT_OUTPUT);
+
+    for(portAddr = _8255_ADDR_ATA_DATALO;
+        portAddr <= _8255_ADDR_ATA_CTRL;
+        portAddr++)
+    {
+        for(bitIx = 0; bitIx < 8; bitIx++)
+        {
+            dataOut = (0x01 << bitIx);
+
+            write8255Port(portAddr, dataOut);
+        }
+    }
+}
+#endif

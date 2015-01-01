@@ -6,6 +6,7 @@ Description.. Header file with port, address and bitmask definitions
 ............. for the ATA interface on a PIC MCU
 -------------------------------------------------------------------*/
 
+#define ATA_USE_WIRINGTEST               1
 #define ATA_USE_ID 1
 
 
