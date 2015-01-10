@@ -7,28 +7,29 @@ Description.. Header file for a driver to read a FAT32 FS over an ATA
 -------------------------------------------------------------------*/
 
 /* MBR & BPB/Volume ID stuff */
-#define MBR_SIG_OFFSET_WORDS             205
-#define MBR_SIG                          0x55AA
-#define MBR_PART_OFFSET_WORDS            446
-#define PART_TYPE_OFFSET_WORDS           2
+#define MBR_SIG_OFFSET_BYTES             510
+#define MBR_SIG1                         0x55
+#define MBR_SIG2                         0xAA
+#define MBR_PART_OFFSET_BYTES            446
+#define PART_TYPE_OFFSET_BYTES           4
+#define PART_LBABEGIN_OFFSET_BYTES       3
 #define MBR_FAT32_PART_SIG1              0x0B
 #define MBR_FAT32_PART_SIG2              0x0C
 
-#define BPB_SEC_PER_CLUS_OFFSET_WORDS    6
-#define BPB_SEC_PER_FAT_OFFSET_WORDS     9
-#define BPB_ROOT_DIR_CLUSTER_OFFSET_WORDS 4//2
+#define BPB_SEC_PER_CLUS_OFFSET_BYTES    13
+#define BPB_SEC_PER_FAT_OFFSET_BYTES     19
+#define BPB_ROOT_DIR_CLUSTER_OFFSET_BYTES 4
 
 /* This is always the same */
 #define BPB_BYTES_PER_SECTOR             512
 
 /* dir entry stuff */
-#define DIR_REC_LENGTH_WORDS             16
 #define DIR_REC_LENGTH_BYTES             32
 #define DIR_RECS_PER_SECTOR              16
 #define SHORT_FILENAME_LENGTH_BYTES      11
 #define SHORT_FILENAME_LENGTH_WORDS      5
-#define DIR_REC_CLUSTER_HI_OFFSET_WORDS  4
-#define DIR_REC_CLUSTER_LO_OFFSET_WORDS  2
+#define DIR_REC_CLUSTER_HI_OFFSET_BYTES  8
+#define DIR_REC_CLUSTER_LO_OFFSET_BYTES  4
 
 #define DIRENTRY_NAMECHAR_UNUSED         0xE5
 #define DIRENTRY_ATTRIB_DIR              0x10
@@ -60,13 +61,10 @@ typedef struct
 {
   uint32_t firstcluster;
   uint32_t currentclusternum;
-  //  uint32_t currentclusterbytesleft;
   uint32_t currentsectornum;
   uint32_t currentsectorpos;
   uint32_t sizebytes;
   uint32_t position;
-  uint8_t evenbyte;
-  uint16_t currentword;
 } FD;
 
 

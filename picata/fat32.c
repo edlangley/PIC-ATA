@@ -34,7 +34,7 @@ int8_t FAT32_Mount(uint8_t drvnum)
     int8_t retval;
     uint32_t templong;
 
-    uint16_t partitionsig;
+    uint16_t signature;
     uint32_t partitionlbabegin;
 
     uint16_t bpbrsvdseccnt;
@@ -43,81 +43,83 @@ int8_t FAT32_Mount(uint8_t drvnum)
 
 
     /* validate MBR */
-    if((retval = ATA_SetLBAForRead(0)) != ATA_OK)
+    if((retval = ATA_SetSectorLBAForRead(0)) != ATA_OK)
     {
         return retval;
     }
 
-    ATA_SkipWords(MBR_SIG_OFFSET_WORDS);
+    ATA_SkipSectorBytes(MBR_SIG_OFFSET_BYTES);
 
-    if(ATA_ReadWord() != MBR_SIG)
+    signature = ATA_ReadSectorByte();
+    if(signature != MBR_SIG1)
+    {
+        return FAT32_INVALID_MBR;
+    }
+    signature = ATA_ReadSectorByte();
+    if(signature != MBR_SIG2)
     {
         return FAT32_INVALID_MBR;
     }
 
     /* MBR OK */
-    if((retval = ATA_SetLBAForRead(0)) != ATA_OK)
+    if((retval = ATA_SetSectorLBAForRead(0)) != ATA_OK)
     {
         return retval;
     }
 
-    ATA_SkipWords(MBR_PART_OFFSET_WORDS + PART_TYPE_OFFSET_WORDS);
+    ATA_SkipSectorBytes(MBR_PART_OFFSET_BYTES + PART_TYPE_OFFSET_BYTES);
 
-    partitionsig = ATA_ReadWord();
-    if( (partitionsig != MBR_FAT32_PART_SIG1) && (partitionsig != MBR_FAT32_PART_SIG2) )
+    signature = ATA_ReadSectorByte();
+    if( (signature != MBR_FAT32_PART_SIG1) && (signature != MBR_FAT32_PART_SIG2) )
     {
         /* for now assume first partition is FAT32 */
         return FAT32_PART_NOT_FOUND;
     }
 
-    /* move forward one word to the LBA begin field */
-    ATA_SkipWords(1);
+    ATA_SkipSectorBytes(PART_LBABEGIN_OFFSET_BYTES);
 
-    partitionlbabegin = (uint32_t)ATA_ReadWord();
-    templong = (uint32_t)ATA_ReadWord();
-    partitionlbabegin |= (templong << 16);
+    ATA_READ_32BIT_VAL(partitionlbabegin);
 
     /* now move on to the volume ID sector or BPB of the FAT32 partition */
-    if((retval = ATA_SetLBAForRead(partitionlbabegin)) != ATA_OK)
+    if((retval = ATA_SetSectorLBAForRead(partitionlbabegin)) != ATA_OK)
     {
         return retval;
     }
 
-    ATA_SkipWords(BPB_SEC_PER_CLUS_OFFSET_WORDS);
+    ATA_SkipSectorBytes(BPB_SEC_PER_CLUS_OFFSET_BYTES);
 
-    SectorsPerCluster = (uint8_t)ATA_ReadWord();
+    SectorsPerCluster = ATA_ReadSectorByte();
 
-    bpbrsvdseccnt = ATA_ReadWord();
+    ATA_READ_16BIT_VAL(bpbrsvdseccnt);
 
-    bpbnumfats = (uint8_t)ATA_ReadWord();
+    bpbnumfats = ATA_ReadSectorByte();
 
-    ATA_SkipWords(BPB_SEC_PER_FAT_OFFSET_WORDS);
+    ATA_SkipSectorBytes(BPB_SEC_PER_FAT_OFFSET_BYTES);
 
-    bpbsecsperfat = (uint32_t)(ATA_ReadWord());
-    templong = (uint32_t)ATA_ReadWord();
-    bpbsecsperfat |= (templong << 16);
+    ATA_READ_32BIT_VAL(bpbsecsperfat);
 
-    ATA_SkipWords(BPB_ROOT_DIR_CLUSTER_OFFSET_WORDS);
+    ATA_SkipSectorBytes(BPB_ROOT_DIR_CLUSTER_OFFSET_BYTES);
 
-    RootDirFirstCluster = (uint32_t)ATA_ReadWord();
-    templong = (uint32_t)ATA_ReadWord();
-    RootDirFirstCluster |= (templong << 16);
+    ATA_READ_32BIT_VAL(RootDirFirstCluster);
 
     FatBeginLBA = partitionlbabegin + bpbrsvdseccnt;
     ClusterBeginLBA = partitionlbabegin + bpbrsvdseccnt + (bpbnumfats * bpbsecsperfat);
 
     /* set up the root dir .... */
-    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(RootDirFirstCluster))) != ATA_OK)
+    /*
+    if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(RootDirFirstCluster))) != ATA_OK)
     {
         return retval;
     }
+    */
     CurrentDirFirstCluster = RootDirFirstCluster;
     CurrentDirEntryNum = 0;
     CurrentDirSectorNum = 0;
     CurrentDirClusterNum = CurrentDirFirstCluster;
 
     /* terminate the filename string */
-    CurrentDirEntryName[SHORT_FILENAME_LENGTH_BYTES] = 0;
+    CurrentDirEntryName[0] = '\\';
+    CurrentDirEntryName[1] = 0;
 
     return(FAT32_OK);
 }
@@ -176,17 +178,16 @@ int8_t FAT32_DirLoadNextEntry()
 {
     uint8_t i, j;
     int8_t retval;
-    uint16_t wordread;
     uint32_t templong;
 
-    /* set disk reading position back to file position after being changed
+    /* set disk reading position back to dir position after being changed
        elsewhere */
-    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
+    if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
     {
         return retval;
     }
 
-    ATA_SkipWords(DIR_REC_LENGTH_WORDS * CurrentDirEntryNum);
+    ATA_SkipSectorBytes(DIR_REC_LENGTH_BYTES * CurrentDirEntryNum);
 
     CurrentDirEntryName[0] = DIRENTRY_NAMECHAR_UNUSED;
     while( (CurrentDirEntryName[0] == DIRENTRY_NAMECHAR_UNUSED) ||
@@ -194,24 +195,26 @@ int8_t FAT32_DirLoadNextEntry()
            (CurrentDirEntryName[0] != 0) )
     {
         /* check if a new sector must be read */
-        if( (CurrentDirEntryNum * DIR_REC_LENGTH_BYTES) >= BPB_BYTES_PER_SECTOR)
+        if( (CurrentDirEntryNum * DIR_REC_LENGTH_BYTES) >= (CurrentDirSectorNum * BPB_BYTES_PER_SECTOR))
         {
             /* check if a new cluster must be read */
             if(CurrentDirSectorNum >= SectorsPerCluster)
             {
-                /* look up next cluster in FAT */
-                if((retval = ATA_SetLBAForRead(FatBeginLBA + (CurrentDirClusterNum >> 7))) != ATA_OK)
+                /* look up next cluster in FAT:
+                 * - shift down 7 because cluster record size is 4 bytes, so 512/4=128 = 0x80,
+                 * so >>7 is quick way of converting cluster record number to sector containing it */
+
+                if((retval = ATA_SetSectorLBAForRead(FatBeginLBA + (CurrentDirClusterNum >> 7))) != ATA_OK)
                 {
                     return retval;
                 }
-                ATA_SkipWords(CurrentDirClusterNum & 0x0000007F);
+                /* again quickly get offset in current sector to desired cluster record */
+                ATA_SkipSectorBytes(CurrentDirClusterNum & 0x0000007F);
 
-                CurrentDirClusterNum = (uint32_t)ATA_ReadWord();
-                templong = (uint32_t)ATA_ReadWord();
-                CurrentDirClusterNum |= (templong << 16);
+                ATA_READ_32BIT_VAL(CurrentDirClusterNum);
 
                 CurrentDirSectorNum = 0;
-                if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum))) != ATA_OK)
+                if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum))) != ATA_OK)
                 {
                     return retval;
                 }
@@ -220,27 +223,23 @@ int8_t FAT32_DirLoadNextEntry()
             {
                 /* read the next sector */
                 CurrentDirSectorNum++;
-                if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
+                if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
                 {
                     return retval;
                 }
             }
         }
 
-        for(i = 0, j = 0; i < SHORT_FILENAME_LENGTH_WORDS; i++)
+        for(i = 0; i < SHORT_FILENAME_LENGTH_BYTES; i++)
         {
-            wordread = ATA_ReadWord();
-
-            CurrentDirEntryName[j++] = (uint8_t)(wordread & 0x00FF);
-            CurrentDirEntryName[j++] = (uint8_t)((wordread >> 8) & 0x00FF);
+            CurrentDirEntryName[i] = ATA_ReadSectorByte();
         }
 
-        /* last byte of name and attrib */
-        wordread = ATA_ReadWord();
-        CurrentDirEntryName[j] = (uint8_t)(wordread & 0x00FF);
-        CurrentDirEntryAttrib = (uint8_t)((wordread >> 8) & 0x00FF);
+        /* attrib */
+        CurrentDirEntryAttrib = ATA_ReadSectorByte();
 
         /* read cluster numbers */
+        /*
         ATA_SkipWords(DIR_REC_CLUSTER_HI_OFFSET_WORDS);
         CurrentDirEntryFirstCluster = 0;
         CurrentDirEntryFirstCluster = ATA_ReadWord();
@@ -248,10 +247,11 @@ int8_t FAT32_DirLoadNextEntry()
 
         templong = (uint32_t)ATA_ReadWord();
         CurrentDirEntryFirstCluster |= (templong << 16);
+        */
+        ATA_SkipSectorBytes(DIR_REC_CLUSTER_HI_OFFSET_BYTES);
+        ATA_READ_32BIT_VAL(CurrentDirEntryFirstCluster);
 
-        CurrentDirEntrySizeBytes = ATA_ReadWord();
-        templong = (uint32_t)ATA_ReadWord();
-        CurrentDirEntrySizeBytes = (templong << 16);
+        ATA_READ_32BIT_VAL(CurrentDirEntrySizeBytes);
 
         CurrentDirEntryNum++;
     }
@@ -307,7 +307,6 @@ int8_t FAT32_FileOpen(FD *fd, uint8_t *filename)
     fd->currentsectorpos = 0;
     fd->sizebytes = CurrentDirEntrySizeBytes;
     fd->position = 0;
-    fd->evenbyte = TRUE;
 
     return FAT32_OK;
 }
@@ -322,86 +321,64 @@ int8_t FAT32_FileRead(FD *fd, uint16_t numBytes, uint8_t *dataBuf)
     {
         /* if LBA has been changed elsewhere set disk reading position
            back to current file position */
-        if(ATA_CurrentLBAAddr() != (CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum))
+        if(ATA_CurrentSectorLBAAddr() != (CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum))
         {
-            if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum)) != ATA_OK)
+            if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum)) != ATA_OK)
             {
                 return retval;
             }
-            ATA_SkipWords(fd->currentsectorpos);
+            ATA_SkipSectorBytes(fd->currentsectorpos);
         }
 
-        if(fd->evenbyte)
+        /* check if a new sector must be read */
+        if(fd->currentsectorpos >= BPB_BYTES_PER_SECTOR)
         {
-            /* need to read next word from disk */
-            /* check if a new sector must be read */
-            if(fd->currentsectorpos >= (BPB_BYTES_PER_SECTOR/2))
+            /* then check if a new cluster must be read */
+            if(fd->currentsectornum >= SectorsPerCluster)
             {
-                /* then check if a new cluster must be read */
-                if(fd->currentsectornum >= SectorsPerCluster)
+                /* look up next cluster in FAT */
+                if((retval = ATA_SetSectorLBAForRead(FatBeginLBA + (fd->currentclusternum >> 7))) != ATA_OK)
                 {
-                    /* look up next cluster in FAT */
-                    if((retval = ATA_SetLBAForRead(FatBeginLBA + (fd->currentclusternum >> 7))) != ATA_OK)
-                    {
-                        return retval;
-                    }
-                    ATA_SkipWords(fd->currentclusternum & 0x0000007F);
-
-                    fd->currentclusternum = (uint32_t)ATA_ReadWord();
-                    templong = (uint32_t)ATA_ReadWord();
-                    fd->currentclusternum |= (templong << 16);
-
-                    if(fd->currentclusternum == EOF_CLUSTER_MARKER)
-                    {
-                        return FAT32_EOF;
-                    }
-
-                    fd->currentsectornum = 0;
-                    fd->currentsectorpos = 0;
-                    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum))) != ATA_OK)
-                    {
-                        return retval;
-                    }
+                    return retval;
                 }
-                else
+                ATA_SkipSectorBytes(fd->currentclusternum & 0x0000007F);
+
+                ATA_READ_32BIT_VAL(fd->currentclusternum);
+
+                if(fd->currentclusternum == EOF_CLUSTER_MARKER)
                 {
-                    /* read the next sector */
-                    fd->currentsectornum++;
-                    fd->currentsectorpos = 0;
-                    if((retval = ATA_SetLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum)) != ATA_OK)
-                    {
-                        return retval;
-                    }
+                    return FAT32_EOF;
                 }
 
+                fd->currentsectornum = 0;
+                fd->currentsectorpos = 0;
+                if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum))) != ATA_OK)
+                {
+                    return retval;
+                }
             }
-
-            /* check for end of file according to size from dir entry */
-            if(fd->position >= fd->sizebytes)
+            else
             {
-                return FAT32_EOF;
+                /* read the next sector */
+                fd->currentsectornum++;
+                fd->currentsectorpos = 0;
+                if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(fd->currentclusternum) + fd->currentsectornum)) != ATA_OK)
+                {
+                    return retval;
+                }
             }
 
-            fd->currentword = ATA_ReadWord();
-            fd->currentsectorpos++;
-            fd->position++;
-            *dataBuf = (int8_t)(fd->currentword >> 8);
-            fd->evenbyte = FALSE;
         }
-        else
+
+        /* check for end of file according to size from dir entry */
+        if(fd->position >= fd->sizebytes)
         {
-            /* byte is top half of word read from disk last time, so no access required */
-
-            /* check for end of file according to size from dir entry */
-            if(fd->position >= fd->sizebytes)
-            {
-                return FAT32_EOF;
-            }
-
-            fd->position++;
-            *dataBuf = (int8_t)(fd->currentword & 0x00FF);
-            fd->evenbyte = TRUE;
+            return FAT32_EOF;
         }
+
+        fd->currentsectorpos++;
+        fd->position++;
+        *dataBuf = ATA_ReadSectorByte();
 
         dataBuf++;
     }

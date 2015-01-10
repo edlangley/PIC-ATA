@@ -21,6 +21,17 @@ Description.. Header file with port, address and bitmask definitions
 #define ATA_MASTER                       0
 #define ATA_SLAVE                        1
 
+/* Reading multi-byte values macros for easier porting,
+ * stored on disk as little endian so OR bytes in reverse */
+#define ATA_READ_16BIT_VAL(x) \
+    x = (uint16_t)ATA_ReadSectorByte(); \
+    x |= ((uint16_t)ATA_ReadSectorByte() << 8)
+#define ATA_READ_32BIT_VAL(x) \
+    x = (uint16_t)ATA_ReadSectorByte(); \
+    x |= ((uint32_t)ATA_ReadSectorByte() << 8); \
+    x |= ((uint32_t)ATA_ReadSectorByte() << 16); \
+    x |= ((uint32_t)ATA_ReadSectorByte() << 24)
+
 /* leaving the HDINFO here in the header as it
  * will be part of API and remove getter functions
  * shortly:
@@ -63,8 +74,8 @@ uint16_t ATA_GetInfoNumCyls(void);
 uint16_t ATA_GetInfoNumHeads(void);
 uint16_t ATA_GetInfoNumSectors(void);
 #endif
-int8_t ATA_SetLBAForRead(uint32_t lba);
-uint16_t ATA_ReadWord();
-void ATA_SkipWords(uint16_t numwords);
-uint32_t ATA_CurrentLBAAddr();
+int8_t ATA_SetSectorLBAForRead(uint32_t lba);
+uint8_t ATA_ReadSectorByte();
+void ATA_SkipSectorBytes(uint16_t numbytes);
+uint32_t ATA_CurrentSectorLBAAddr();
 int8_t ATA_ReadSectors(uint32_t, uint16_t *, uint8_t);

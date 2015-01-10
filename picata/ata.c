@@ -164,29 +164,31 @@ Set bits to activate signals.
 #define HDINFO_SIZE_WORDS                256
 #define HDINFO_SIZE_LONGS                128
 
-
+#define BYTE_SWAP_16(w)                  ((w << 8) | (w >> 8))
 
 
 #if defined(ATA_USE_ID)
 HDINFO	hd0info;
 #endif
 
-uint8_t Current8255CtrlWd = 0x00;
-uint8_t CurrentDrv = 0;
-uint32_t CurrentLBAAddr = 0;
+static uint8_t Current8255CtrlWd = 0x00;
+static uint8_t CurrentDrv = 0;
+static uint32_t CurrentLBAAddr = 0;
+static uint8_t CurrentReadByteOdd = 0;
+static uint16_t CurrentReadWord = 0;
 
 /* Internal function prototypes */
-void set8255DataPortsDir(uint8_t dir);
-uint8_t read8255Port(uint8_t portAddr);
-void write8255Port(uint8_t portAddr, uint8_t value);
-void setAtaRegByte(uint8_t ataRegAddr, uint8_t data);
-void setAtaRegWord(uint8_t ataRegAddr, uint16_t data);
-uint8_t getAtaRegByte(uint8_t ataRegAddr);
-uint16_t getAtaRegWord(uint8_t ataRegAddr);
-void resetAta();
-void writeLba(uint32_t lba);
+static void set8255DataPortsDir(uint8_t dir);
+static uint8_t read8255Port(uint8_t portAddr);
+static void write8255Port(uint8_t portAddr, uint8_t value);
+static void setAtaRegByte(uint8_t ataRegAddr, uint8_t data);
+static void setAtaRegWord(uint8_t ataRegAddr, uint16_t data);
+static uint8_t getAtaRegByte(uint8_t ataRegAddr);
+static uint16_t getAtaRegWord(uint8_t ataRegAddr);
+static void resetAta();
+static void writeLba(uint32_t lba);
 #ifdef ATA_USE_WIRINGTEST
-void ataWiringTest();
+static void ataWiringTest();
 #endif
 
 /* API functions */
@@ -359,7 +361,9 @@ int8_t ATA_ReadDriveInfo()
         idword = getAtaRegWord(ATA_ADDR_DATA);
 
  #ifdef HD_INFO_DBG
-        printf(" 0x%02X 0x%02X, %c%c\n\r", (idword >> 8), (idword & 0x00FF), (idword >> 8), (idword & 0x00FF));
+        if(!(i % 8))
+            printf("\n\r%03X: ", i);
+        printf(" %02X %02X", (idword >> 8), (idword & 0x00FF));
  #endif
 
         switch(i)
@@ -377,17 +381,17 @@ int8_t ATA_ReadDriveInfo()
             if( (i>= ATA_DRVINFOWORD_MODELSTART) &&
                 (i < (ATA_DRVINFOWORD_MODELSTART + ATA_DRVINFOWORD_MODELLENGTH)) )
             {
-                hd0info.model[i-ATA_DRVINFOWORD_MODELSTART] = idword;
+                hd0info.model[i-ATA_DRVINFOWORD_MODELSTART] = BYTE_SWAP_16(idword);
             }
             else if( (i>= ATA_DRVINFOWORD_REVSTART) &&
                      (i < (ATA_DRVINFOWORD_REVSTART + ATA_DRVINFOWORD_REVLENGTH)) )
             {
-                hd0info.fw_rev[i-ATA_DRVINFOWORD_REVSTART] = idword;
+                hd0info.fw_rev[i-ATA_DRVINFOWORD_REVSTART] = BYTE_SWAP_16(idword);
             }
             else if( (i>= ATA_DRVINFOWORD_SERNUMSTART) &&
                      (i < (ATA_DRVINFOWORD_SERNUMSTART + ATA_DRVINFOWORD_SERNUMLENGTH)) )
             {
-                hd0info.fw_rev[i-ATA_DRVINFOWORD_SERNUMSTART] = idword;
+                hd0info.fw_rev[i-ATA_DRVINFOWORD_SERNUMSTART] = BYTE_SWAP_16(idword);
             }
         }
 #else
@@ -433,7 +437,7 @@ uint16_t ATA_GetInfoNumSectors()
 }
 #endif
 
-int8_t ATA_SetLBAForRead(uint32_t lba)
+int8_t ATA_SetSectorLBAForRead(uint32_t lba)
 {
     uint32_t	timeout;
 
@@ -453,31 +457,51 @@ int8_t ATA_SetLBAForRead(uint32_t lba)
             return(ATA_BSY_TIMEOUT);
     }
 
+    CurrentReadByteOdd = 0;
+
     return(ATA_OK);
 }
 
-uint16_t ATA_ReadWord()
+uint8_t ATA_ReadSectorByte()
 {
-    uint16_t data;
-
-    while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
-        ;
-
-    data = getAtaRegWord(ATA_ADDR_DATA);
-
-    return(data);
-}
-
-void ATA_SkipWords(uint16_t numwords)
-{
-    while(numwords)
+    if(!CurrentReadByteOdd)
     {
-        getAtaRegWord(ATA_ADDR_DATA);
-        numwords--;
+        while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
+            ;
+        CurrentReadWord = getAtaRegWord(ATA_ADDR_DATA);
+        CurrentReadByteOdd = 1;
+
+        return(CurrentReadWord & 0x00FF);
+    }
+    else
+    {
+        CurrentReadByteOdd = 0;
+
+        return(CurrentReadWord >> 8);
     }
 }
 
-uint32_t ATA_CurrentLBAAddr()
+void ATA_SkipSectorBytes(uint16_t numbytes)
+{
+    while(numbytes)
+    {
+        if(!CurrentReadByteOdd)
+        {
+            while(getAtaRegByte(ATA_ADDR_STATUS) & ATA_STATUS_BSY)
+                ;
+            CurrentReadWord = getAtaRegWord(ATA_ADDR_DATA);
+            CurrentReadByteOdd = 1;
+        }
+        else
+        {
+            CurrentReadByteOdd = 0;
+        }
+
+        numbytes--;
+    }
+}
+
+uint32_t ATA_CurrentSectorLBAAddr()
 {
     return CurrentLBAAddr;
 }
@@ -531,7 +555,7 @@ int8_t ATA_ReadSectors(uint32_t lba, uint16_t *buffer, uint8_t count)
 }
 
 /* Internal functions */
-void set8255DataPortsDir(uint8_t dir)
+static void set8255DataPortsDir(uint8_t dir)
 {
     PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
@@ -557,7 +581,7 @@ void set8255DataPortsDir(uint8_t dir)
     PIN_nDISABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 }
 
-uint8_t read8255Port(uint8_t portAddr)
+static uint8_t read8255Port(uint8_t portAddr)
 {
     uint8_t readValue;
 
@@ -578,7 +602,7 @@ uint8_t read8255Port(uint8_t portAddr)
     return readValue;
 }
 
-void write8255Port(uint8_t portAddr, uint8_t value)
+static void write8255Port(uint8_t portAddr, uint8_t value)
 {
     PIN_nENABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 
@@ -595,7 +619,7 @@ void write8255Port(uint8_t portAddr, uint8_t value)
     PIN_nDISABLE(PIC_PORT_8255_CS, PIC_BITNUM_8255_CS);
 }
 
-void setAtaRegByte(uint8_t ataRegAddr, uint8_t data)
+static void setAtaRegByte(uint8_t ataRegAddr, uint8_t data)
 {
     set8255DataPortsDir(PORT_OUTPUT);
 
@@ -608,13 +632,13 @@ void setAtaRegByte(uint8_t ataRegAddr, uint8_t data)
     write8255Port(_8255_ADDR_ATA_CTRL, 0);
 }
 
-void setAtaRegWord(uint8_t ataRegAddr, uint16_t data)
+static void setAtaRegWord(uint8_t ataRegAddr, uint16_t data)
 {
     set8255DataPortsDir(PORT_OUTPUT);
 
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
-    write8255Port(_8255_ADDR_ATA_DATALO, (uint8_t)(data >> 8));
-    write8255Port(_8255_ADDR_ATA_DATAHI, (uint8_t)(data & 0x00FF));
+    write8255Port(_8255_ADDR_ATA_DATALO, (uint8_t)(data & 0x00FF));
+    write8255Port(_8255_ADDR_ATA_DATAHI, (uint8_t)(data >> 8));
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr | ATA_CTRL_BIT_WR);
 
     /* data latched into drive when DIOW- de-asserted */
@@ -622,7 +646,7 @@ void setAtaRegWord(uint8_t ataRegAddr, uint16_t data)
     write8255Port(_8255_ADDR_ATA_CTRL, 0);
 }
 
-uint8_t getAtaRegByte(uint8_t ataRegAddr)
+static uint8_t getAtaRegByte(uint8_t ataRegAddr)
 {
     uint8_t dataread;
 
@@ -639,7 +663,7 @@ uint8_t getAtaRegByte(uint8_t ataRegAddr)
     return dataread;
 }
 
-uint16_t getAtaRegWord(uint8_t ataRegAddr)
+static uint16_t getAtaRegWord(uint8_t ataRegAddr)
 {
     uint16_t datareadlow, datareadhigh;
 
@@ -654,10 +678,13 @@ uint16_t getAtaRegWord(uint8_t ataRegAddr)
     write8255Port(_8255_ADDR_ATA_CTRL, ataRegAddr);
     write8255Port(_8255_ADDR_ATA_CTRL, 0);
 
-    return ((datareadlow << 8) | (datareadhigh & 0x00FF));
+    /* Store the 16bit value in big endian internally,
+     * makes no difference outside of the API
+     */
+    return ((datareadhigh << 8) | (datareadlow & 0x00FF));
 }
 
-void resetAta()
+static void resetAta()
 {
     write8255Port(_8255_ADDR_ATA_CTRL, ATA_CTRL_BIT_RESET);
     DELAY_MS(20);
@@ -666,7 +693,7 @@ void resetAta()
     DELAY_MS(5);
 }
 
-void writeLba(uint32_t lba)
+static void writeLba(uint32_t lba)
 {
     register uint32_t byte1, byte2, byte3, byte4;
 
@@ -700,7 +727,7 @@ void writeLba(uint32_t lba)
 }
 
 #ifdef ATA_USE_WIRINGTEST
-void ataWiringTest()
+static void ataWiringTest()
 {
     uint8_t portAddr, bitIx, dataOut;
 

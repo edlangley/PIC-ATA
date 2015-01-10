@@ -15,7 +15,8 @@ Description.. Main code to operate an ATA interface and FAT32 FS on
 void main(void)
 {
     int8_t retval;
-    uint16_t wordix, sectorword;
+    uint8_t sectorbyte;
+    uint16_t byteix;
 
     InitComms();
 
@@ -33,7 +34,7 @@ void main(void)
 
     // DEBUG: dump the first sector
     printf("Reading sector 0: ");
-    if((retval = ATA_SetLBAForRead(0)) != ATA_OK)
+    if((retval = ATA_SetSectorLBAForRead(0)) != ATA_OK)
     {
         printf("ATA error %d\n\r", retval);
     }
@@ -41,14 +42,16 @@ void main(void)
     {
         printf("LBA set\n\r");
     }
-    for(wordix = 0; wordix < 256; wordix++)
+    for(byteix = 0; byteix < 512; byteix++)
     {
-        sectorword = ATA_ReadWord();
-        printf("\tword %3d: 0x%04X, %c%c\n\r", wordix, sectorword, (sectorword >> 8), (sectorword & 0x00FF));
+        sectorbyte = ATA_ReadSectorByte();
+        if(!(byteix % 16))
+            printf("\n\r%03X: ", byteix);
+        printf(" %02X", sectorbyte);
     }
 
 #if defined(ATA_USE_ID)
-    printf("Read drive info: ");
+    printf("\n\r\n\rRead drive info: ");
     if((retval = ATA_ReadDriveInfo()) != ATA_OK)
     {
         printf("ATA error %d\n\r", retval);
