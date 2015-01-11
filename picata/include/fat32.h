@@ -6,6 +6,8 @@ Description.. Header file for a driver to read a FAT32 FS over an ATA
 ............. interface on a PIC MCU
 -------------------------------------------------------------------*/
 
+// TODO: move this stuff into .c:
+
 /* MBR & BPB/Volume ID stuff */
 #define MBR_SIG_OFFSET_BYTES             510
 #define MBR_SIG1                         0x55
@@ -26,8 +28,7 @@ Description.. Header file for a driver to read a FAT32 FS over an ATA
 /* dir entry stuff */
 #define DIR_REC_LENGTH_BYTES             32
 #define DIR_RECS_PER_SECTOR              16
-#define SHORT_FILENAME_LENGTH_BYTES      11
-#define SHORT_FILENAME_LENGTH_WORDS      5
+#define SHORT_FILENAME_LENGTH_BYTES      12
 #define DIR_REC_CLUSTER_HI_OFFSET_BYTES  8
 #define DIR_REC_CLUSTER_LO_OFFSET_BYTES  4
 

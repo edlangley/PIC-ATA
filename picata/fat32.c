@@ -21,17 +21,17 @@ uint8_t CurrentDirEntryName[SHORT_FILENAME_LENGTH_BYTES+1];
 uint8_t CurrentDirEntryAttrib;
 uint32_t CurrentDirEntryFirstCluster;
 uint32_t CurrentDirEntrySizeBytes;
-uint32_t CurrentDirEntryNum;    /* In the current directory */
 
-uint32_t CurrentDirClusterNum;
-uint32_t CurrentDirSectorNum;   /* within the current cluster */
 uint32_t CurrentDirFirstCluster;
+uint32_t CurrentDirClusterNum;
+uint8_t CurrentDirSectorNum;   /* within the current cluster */
+uint16_t CurrentDirSectorOffset; /* within the current sector */
 
 
 /* API functions */
 int8_t FAT32_Mount(uint8_t drvnum)
 {
-    int8_t retval;
+    int8_t retval, filenameix;
     uint32_t templong;
 
     uint16_t signature;
@@ -113,13 +113,16 @@ int8_t FAT32_Mount(uint8_t drvnum)
     }
     */
     CurrentDirFirstCluster = RootDirFirstCluster;
-    CurrentDirEntryNum = 0;
-    CurrentDirSectorNum = 0;
     CurrentDirClusterNum = CurrentDirFirstCluster;
+    CurrentDirSectorNum = 0;
+    CurrentDirSectorOffset = 0;
 
     /* terminate the filename string */
     CurrentDirEntryName[0] = '\\';
-    CurrentDirEntryName[1] = 0;
+    for(filenameix = 1; filenameix < (SHORT_FILENAME_LENGTH_BYTES+1); filenameix++)
+    {
+        CurrentDirEntryName[filenameix] = 0;
+    }
 
     return(FAT32_OK);
 }
@@ -131,18 +134,18 @@ int8_t FAT32_DirOpen(uint8_t *dirname)
     /* check for current dir name (.) to reset to start of dir records */
     if(!strncmp(dirname, ".", 1))
     {
-        CurrentDirEntryNum = 0;
-        CurrentDirSectorNum = 0;
         CurrentDirClusterNum = CurrentDirFirstCluster;
+        CurrentDirSectorNum = 0;
+        CurrentDirSectorOffset = 0;
         return FAT32_OK;
     }
 
     /* check for root dir name (\\) to reset to start of root dir records */
     if(!strncmp(dirname, "\\", 1))
     {
-        CurrentDirEntryNum = 0;
-        CurrentDirSectorNum = 0;
         CurrentDirClusterNum = RootDirFirstCluster;
+        CurrentDirSectorNum = 0;
+        CurrentDirSectorOffset = 0;
         return FAT32_OK;
     }
 
@@ -156,9 +159,9 @@ int8_t FAT32_DirOpen(uint8_t *dirname)
     {
     case FAT32_DIRENTRY_IS_DIR:
         /* set to start of dir records for the dir found */
-        CurrentDirEntryNum = 0;
-        CurrentDirSectorNum = 0;
         CurrentDirClusterNum = CurrentDirEntryFirstCluster;
+        CurrentDirSectorNum = 0;
+        CurrentDirSectorOffset = 0;
         return FAT32_OK;
     case FAT32_EODIRENTRYS:
         return FAT32_FILE_NOT_FOUND;
@@ -174,86 +177,83 @@ int8_t FAT32_DirOpen(uint8_t *dirname)
     return retval;
 }
 
+// TODO:
+//       -Make DirDesc structure for context which is passed in, add desc init function
+//       -Check for spaces in filename before extension, if so terminate string there
+
 int8_t FAT32_DirLoadNextEntry()
 {
     uint8_t i, j;
     int8_t retval;
     uint32_t templong;
 
-    /* set disk reading position back to dir position after being changed
-       elsewhere */
-    if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
-    {
-        return retval;
-    }
-
-    ATA_SkipSectorBytes(DIR_REC_LENGTH_BYTES * CurrentDirEntryNum);
-
     CurrentDirEntryName[0] = DIRENTRY_NAMECHAR_UNUSED;
-    while( (CurrentDirEntryName[0] == DIRENTRY_NAMECHAR_UNUSED) ||
-           (CurrentDirEntryAttrib & DIRENTRY_ATTRIB_LFN) ||
-           (CurrentDirEntryName[0] != 0) )
+    while(((CurrentDirEntryName[0] == DIRENTRY_NAMECHAR_UNUSED) ||
+           (CurrentDirEntryAttrib & DIRENTRY_ATTRIB_LFN)) &&
+          (CurrentDirEntryName[0] != 0))
     {
         /* check if a new sector must be read */
-        if( (CurrentDirEntryNum * DIR_REC_LENGTH_BYTES) >= (CurrentDirSectorNum * BPB_BYTES_PER_SECTOR))
+        if(CurrentDirSectorOffset >= BPB_BYTES_PER_SECTOR)
         {
             /* check if a new cluster must be read */
             if(CurrentDirSectorNum >= SectorsPerCluster)
             {
                 /* look up next cluster in FAT:
-                 * - shift down 7 because cluster record size is 4 bytes, so 512/4=128 = 0x80,
-                 * so >>7 is quick way of converting cluster record number to sector containing it */
+                 * - shift down 7 because cluster number size is 4 bytes, so 512/4=128 = 0x80,
+                 * so >>7 is quick way of converting cluster number to sector containing it */
 
                 if((retval = ATA_SetSectorLBAForRead(FatBeginLBA + (CurrentDirClusterNum >> 7))) != ATA_OK)
                 {
                     return retval;
                 }
-                /* again quickly get offset in current sector to desired cluster record */
+                /* again quickly get offset in current sector to desired cluster number */
                 ATA_SkipSectorBytes(CurrentDirClusterNum & 0x0000007F);
 
                 ATA_READ_32BIT_VAL(CurrentDirClusterNum);
-
                 CurrentDirSectorNum = 0;
-                if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum))) != ATA_OK)
-                {
-                    return retval;
-                }
+                CurrentDirSectorOffset = 0;
             }
             else
             {
                 /* read the next sector */
                 CurrentDirSectorNum++;
-                if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
-                {
-                    return retval;
-                }
+                CurrentDirSectorOffset = 0;
             }
         }
 
-        for(i = 0; i < SHORT_FILENAME_LENGTH_BYTES; i++)
+        /* set disk reading position back to dir position after possibly
+           being changed elsewhere */
+        if((retval = ATA_SetSectorLBAForRead(CLUSTERNUMTOLBA(CurrentDirClusterNum) + CurrentDirSectorNum)) != ATA_OK)
+        {
+            return retval;
+        }
+        ATA_SkipSectorBytes(CurrentDirSectorOffset);
+
+        /* 8.3 filename */
+        for(i = 0; i < 8; i++)
         {
             CurrentDirEntryName[i] = ATA_ReadSectorByte();
+        }
+        CurrentDirEntryName[8] = '.';
+        for(i = 0; i < 3; i++)
+        {
+            CurrentDirEntryName[9+i] = ATA_ReadSectorByte();
         }
 
         /* attrib */
         CurrentDirEntryAttrib = ATA_ReadSectorByte();
 
-        /* read cluster numbers */
-        /*
-        ATA_SkipWords(DIR_REC_CLUSTER_HI_OFFSET_WORDS);
-        CurrentDirEntryFirstCluster = 0;
-        CurrentDirEntryFirstCluster = ATA_ReadWord();
-        ATA_SkipWords(DIR_REC_CLUSTER_LO_OFFSET_WORDS);
-
-        templong = (uint32_t)ATA_ReadWord();
-        CurrentDirEntryFirstCluster |= (templong << 16);
-        */
+        /* cluster numbers */
         ATA_SkipSectorBytes(DIR_REC_CLUSTER_HI_OFFSET_BYTES);
-        ATA_READ_32BIT_VAL(CurrentDirEntryFirstCluster);
+        ATA_READ_16BIT_VAL(CurrentDirEntryFirstCluster);
+        CurrentDirEntryFirstCluster <<= 16;
+        ATA_SkipSectorBytes(DIR_REC_CLUSTER_LO_OFFSET_BYTES);
+        ATA_READ_16BIT_VAL(templong);
+        CurrentDirEntryFirstCluster |= (templong & 0x0000FFFF);
 
         ATA_READ_32BIT_VAL(CurrentDirEntrySizeBytes);
 
-        CurrentDirEntryNum++;
+        CurrentDirSectorOffset += DIR_REC_LENGTH_BYTES;
     }
 
     /* decide return code */
