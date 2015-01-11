@@ -27,11 +27,12 @@ Description.. Header file with port, address and bitmask definitions
     x = (uint16_t)ATA_ReadSectorByte(); \
     x |= ((uint16_t)ATA_ReadSectorByte() << 8)
 #define ATA_READ_32BIT_VAL(x) \
-    x = (uint16_t)ATA_ReadSectorByte(); \
+    x = (uint32_t)ATA_ReadSectorByte(); \
     x |= ((uint32_t)ATA_ReadSectorByte() << 8); \
     x |= ((uint32_t)ATA_ReadSectorByte() << 16); \
     x |= ((uint32_t)ATA_ReadSectorByte() << 24)
 
+// TODO: sort this:
 /* leaving the HDINFO here in the header as it
  * will be part of API and remove getter functions
  * shortly:
