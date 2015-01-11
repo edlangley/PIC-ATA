@@ -33,7 +33,7 @@ void main(void)
     }
 
     // DEBUG: dump the first sector
-    printf("Reading sector 0: ");
+    printf("\n\rReading sector 0: ");
     if((retval = ATA_SetSectorLBAForRead(0)) != ATA_OK)
     {
         printf("ATA error %d\n\r", retval);
@@ -45,7 +45,25 @@ void main(void)
     for(byteix = 0; byteix < 512; byteix++)
     {
         sectorbyte = ATA_ReadSectorByte();
-        if(!(byteix % 16))
+        if((!(byteix % 16)) && (byteix != 0))
+            printf("\n\r%03X: ", byteix);
+        printf(" %02X", sectorbyte);
+    }
+
+    // DEBUG:
+    printf("\n\r\n\rReading sector 0x00004ABC: ");
+    if((retval = ATA_SetSectorLBAForRead(0x00004ABC)) != ATA_OK)
+    {
+        printf("ATA error %d\n\r", retval);
+    }
+    else
+    {
+        printf("LBA set\n\r");
+    }
+    for(byteix = 0; byteix < 512; byteix++)
+    {
+        sectorbyte = ATA_ReadSectorByte();
+        if((!(byteix % 16)) && (byteix != 0))
             printf("\n\r%03X: ", byteix);
         printf(" %02X", sectorbyte);
     }
@@ -69,7 +87,7 @@ void main(void)
 #endif
 
 #ifdef FAT32_ENABLED
-    printf("Mount FAT32: ");
+    printf("\n\r\n\rMount FAT32: ");
     if((retval = FAT32_Mount(0)) != FAT32_OK)
     {
         printf("Error %d\n\r", retval);
