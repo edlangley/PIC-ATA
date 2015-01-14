@@ -16,7 +16,7 @@ uint32_t ClusterBeginLBA;
 uint8_t SectorsPerCluster;
 uint32_t RootDirFirstCluster;
 
-uint8_t CurrentDirEntryName[SHORT_FILENAME_LENGTH_BYTES+1];
+uint8_t CurrentDirEntryName[SHORT_FILENAME_LENGTH_BYTES];
 
 uint8_t CurrentDirEntryAttrib;
 uint32_t CurrentDirEntryFirstCluster;
@@ -119,7 +119,7 @@ int8_t FAT32_Mount(uint8_t drvnum)
 
     /* terminate the filename string */
     CurrentDirEntryName[0] = '\\';
-    for(filenameix = 1; filenameix < (SHORT_FILENAME_LENGTH_BYTES+1); filenameix++)
+    for(filenameix = 1; filenameix < (SHORT_FILENAME_LENGTH_BYTES); filenameix++)
     {
         CurrentDirEntryName[filenameix] = 0;
     }
@@ -127,7 +127,7 @@ int8_t FAT32_Mount(uint8_t drvnum)
     return(FAT32_OK);
 }
 
-int8_t FAT32_DirOpen(uint8_t *dirname)
+int8_t FAT32_DirOpen(const uint8_t *dirname)
 {
     int8_t retval = 0;
 
@@ -179,17 +179,16 @@ int8_t FAT32_DirOpen(uint8_t *dirname)
 
 // TODO:
 //       -Make DirDesc structure for context which is passed in, add desc init function
-//       -Check for spaces in filename before extension, if so terminate string there
 
 int8_t FAT32_DirLoadNextEntry()
 {
-    uint8_t i, j;
+    uint8_t filenameix, filenamelen;
     int8_t retval;
     uint32_t templong;
 
-    CurrentDirEntryName[0] = DIRENTRY_NAMECHAR_UNUSED;
-    while(((CurrentDirEntryName[0] == DIRENTRY_NAMECHAR_UNUSED) ||
-           (CurrentDirEntryAttrib & DIRENTRY_ATTRIB_LFN)) &&
+    CurrentDirEntryName[0] = DIRENT_NAMECHAR_UNUSED;
+    while(((CurrentDirEntryName[0] == DIRENT_NAMECHAR_UNUSED) ||
+           (CurrentDirEntryAttrib & DIRENT_ATTRIB_LFN)) &&
           (CurrentDirEntryName[0] != 0))
     {
         /* check if a new sector must be read */
@@ -230,34 +229,49 @@ int8_t FAT32_DirLoadNextEntry()
         ATA_SkipSectorBytes(CurrentDirSectorOffset);
 
         /* 8.3 filename */
-        for(i = 0; i < 8; i++)
+        for(filenameix = 0, filenamelen = 0; filenameix < DIRENT_FILENAME_LEN_BYTES; filenameix++)
         {
-            CurrentDirEntryName[i] = ATA_ReadSectorByte();
+            if(filenameix == 8)
+            {
+                CurrentDirEntryName[filenamelen] = '.';
+                filenamelen++;
+            }
+
+            CurrentDirEntryName[filenamelen] = ATA_ReadSectorByte();
+
+            if(CurrentDirEntryName[filenamelen] != ' ')
+            {
+                filenamelen++;
+            }
+            else
+            {
+                if(filenameix == 8)
+                {
+                    /* first character of extension is a space, assume there is no extension */
+                    CurrentDirEntryName[filenamelen-1] = 0;
+                }
+            }
         }
-        CurrentDirEntryName[8] = '.';
-        for(i = 0; i < 3; i++)
-        {
-            CurrentDirEntryName[9+i] = ATA_ReadSectorByte();
-        }
+        CurrentDirEntryName[filenamelen] = 0;
 
         /* attrib */
         CurrentDirEntryAttrib = ATA_ReadSectorByte();
 
         /* cluster numbers */
-        ATA_SkipSectorBytes(DIR_REC_CLUSTER_HI_OFFSET_BYTES);
+        ATA_SkipSectorBytes(DIRENT_CLUSTER_HI_OFFSET_BYTES);
         ATA_READ_16BIT_VAL(CurrentDirEntryFirstCluster);
         CurrentDirEntryFirstCluster <<= 16;
-        ATA_SkipSectorBytes(DIR_REC_CLUSTER_LO_OFFSET_BYTES);
+        ATA_SkipSectorBytes(DIRENT_CLUSTER_LO_OFFSET_BYTES);
         ATA_READ_16BIT_VAL(templong);
         CurrentDirEntryFirstCluster |= (templong & 0x0000FFFF);
 
         ATA_READ_32BIT_VAL(CurrentDirEntrySizeBytes);
 
-        CurrentDirSectorOffset += DIR_REC_LENGTH_BYTES;
+        CurrentDirSectorOffset += DIRENT_LENGTH_BYTES;
     }
 
     /* decide return code */
-    if(CurrentDirEntryAttrib & DIRENTRY_ATTRIB_DIR)
+    if(CurrentDirEntryAttrib & DIRENT_ATTRIB_DIR)
     {
         return FAT32_DIRENTRY_IS_DIR;
     }
@@ -276,7 +290,7 @@ uint8_t *FAT32_DirEntryName()
     return CurrentDirEntryName;
 }
 
-int8_t FAT32_FileOpen(FD *fd, uint8_t *filename)
+int8_t FAT32_FileOpen(FD *fd, const uint8_t *filename)
 {
     int8_t retval = 0;
 

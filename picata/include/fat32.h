@@ -26,19 +26,20 @@ Description.. Header file for a driver to read a FAT32 FS over an ATA
 #define BPB_BYTES_PER_SECTOR             512
 
 /* dir entry stuff */
-#define DIR_REC_LENGTH_BYTES             32
-#define DIR_RECS_PER_SECTOR              16
-#define SHORT_FILENAME_LENGTH_BYTES      12
-#define DIR_REC_CLUSTER_HI_OFFSET_BYTES  8
-#define DIR_REC_CLUSTER_LO_OFFSET_BYTES  4
+#define DIRENT_LENGTH_BYTES              32
+#define DIRENTS_PER_SECTOR               16
 
-#define DIRENTRY_NAMECHAR_UNUSED         0xE5
-#define DIRENTRY_ATTRIB_DIR              0x10
-#define DIRENTRY_ATTRIB_LFN              0x0F
+#define DIRENT_CLUSTER_HI_OFFSET_BYTES   8
+#define DIRENT_CLUSTER_LO_OFFSET_BYTES   4
+#define DIRENT_FILENAME_LEN_BYTES        11
+#define DIRENT_NAMECHAR_UNUSED           0xE5
+#define DIRENT_ATTRIB_DIR                0x10
+#define DIRENT_ATTRIB_LFN                0x0F
 
 /* FAT/Cluster chain stuff */
 #define EOF_CLUSTER_MARKER               0xFFFFFFFF
 
+#define SHORT_FILENAME_LENGTH_BYTES      13 /* 8 + '.' + 3 + terminating zero */
 
 /* file reading */
 /* read a word from disk, and a byte from API, so need
@@ -70,10 +71,10 @@ typedef struct
 
 
 int8_t FAT32_Mount(uint8_t drvnum);
-int8_t FAT32_DirOpen(uint8_t *dirname);
+int8_t FAT32_DirOpen(const uint8_t *dirname);
 int8_t FAT32_DirLoadNextEntry();
 uint8_t *FAT32_DirEntryName();
 
-int8_t FAT32_FileOpen(FD *fd, uint8_t *filename);
+int8_t FAT32_FileOpen(FD *fd, const uint8_t *filename);
 int8_t FAT32_FileRead(FD *fd, uint16_t numBytes, uint8_t *dataBuf);
 
