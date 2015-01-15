@@ -17,6 +17,9 @@ void main(void)
     int8_t retval;
     uint8_t sectorbyte;
     uint16_t byteix;
+#if defined(ATA_USE_ID)
+    HDINFO hd0info;
+#endif
 
     InitComms();
 
@@ -32,7 +35,7 @@ void main(void)
         printf("OK\n\r");
     }
 
-    // DEBUG: dump the first sector
+    /* DEBUG: dump the first sector */
     printf("\n\rReading sector 0: ");
     if((retval = ATA_SetSectorLBAForRead(0)) != ATA_OK)
     {
@@ -50,7 +53,7 @@ void main(void)
         printf(" %02X", sectorbyte);
     }
 
-    // DEBUG: dump the BPB of the FAT32 FS
+    /* DEBUG: dump the BPB of the FAT32 FS */
     printf("\n\r\n\rReading sector 0x00004ABC: ");
     if((retval = ATA_SetSectorLBAForRead(0x00004ABC)) != ATA_OK)
     {
@@ -70,19 +73,20 @@ void main(void)
 
 #if defined(ATA_USE_ID)
     printf("\n\r\n\rRead drive info: ");
-    if((retval = ATA_ReadDriveInfo()) != ATA_OK)
+    if((retval = ATA_ReadDriveInfo(&hd0info)) != ATA_OK)
     {
         printf("ATA error %d\n\r", retval);
     }
     else
     {
-        printf("\n\r\tDrive model: %s\n\r\tRevision: %s\n\r\tSerial #:%s\n\r\tCylinders: %u\n\r\tHeads: %u\n\r\tSectors: %u\n\r",
-                ATA_GetInfoModel(),
-                ATA_GetInfoRev(),
-                ATA_GetInfoSerialNum(),
-                ATA_GetInfoNumCyls(),
-                ATA_GetInfoNumHeads(),
-                ATA_GetInfoNumSectors());
+        printf("\n\r\tDrive model: %s\n\r\tRevision: %s\n\r\tSerial #: %s"
+               "\n\r\tCylinders: %u\n\r\tHeads: %u\n\r\tSectors: %u\n\r",
+                hd0info.model,
+                hd0info.fwRev,
+                hd0info.serialNum,
+                hd0info.cyls,
+                hd0info.heads,
+                hd0info.sectors);
     }
 #endif
 
@@ -99,7 +103,7 @@ void main(void)
 
         printf("OK\n\r");
 
-        printf("Root dir contents:\n\r");
+        printf("\n\rRoot dir contents:\n\r");
         retval = FAT32_DirLoadNextEntry();
         while((retval == FAT32_OK) || (retval == FAT32_DIRENTRY_IS_DIR))
         {
@@ -137,15 +141,16 @@ void main(void)
         else
         {
             printf("OK\n\r");
+
+            printf("\n\rPrinting file HELLO.TXT:\n\r");
+            retval = FAT32_FileRead(&testfd, 1, &databyte);
+            while(retval == FAT32_OK)
+            {
+                printf("%c", databyte);
+                retval = FAT32_FileRead(&testfd, 1, &databyte);
+            }
         }
 
-        printf("\n\rPrinting file HELLO.TXT:\n\r");
-        retval = FAT32_FileRead(&testfd, 1, &databyte);
-        while(retval == FAT32_OK)
-        {
-            printf("%c", databyte);
-            retval = FAT32_FileRead(&testfd, 1, &databyte);
-        }
         printf("\n\r");
     }
 #endif

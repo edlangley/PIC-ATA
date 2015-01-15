@@ -167,9 +167,16 @@ Set bits to activate signals.
 #define BYTE_SWAP_16(w)                  ((w << 8) | (w >> 8))
 
 
-#if defined(ATA_USE_ID)
-HDINFO	hd0info;
-#endif
+/* Word numbers of useful parts in drive info block */
+#define ATA_DRVINFOWORD_CYLS             1
+#define ATA_DRVINFOWORD_HEADS            3
+#define ATA_DRVINFOWORD_SECTORS          6
+#define ATA_DRVINFOWORD_MODEL_START      27
+#define ATA_DRVINFOWORD_REV_START        23
+#define ATA_DRVINFOWORD_SERNUM_START     10
+#define ATA_DRVINFOWORD_MODEL_LEN        ((ATA_DRVINFO_MODEL_LEN-1)/2)
+#define ATA_DRVINFOWORD_REV_LEN          ((ATA_DRVINFO_REV_LEN-1)/2)
+#define ATA_DRVINFOWORD_SERNUM_LEN       ((ATA_DRVINFO_SERNUM_LEN-1)/2)
 
 static uint8_t Current8255CtrlWd = 0x00;
 static uint8_t CurrentDrv = 0;
@@ -298,12 +305,13 @@ void ATA_DriveSelect(uint8_t drivenumber)
     CurrentDrv = drivenumber;
 }
 
+#if defined(ATA_USE_ID)
 #define HD_INFO_DBG
 #ifdef HD_INFO_DBG
  #include <stdio.h>
 #endif
 
-int8_t ATA_ReadDriveInfo()
+int8_t ATA_ReadDriveInfo(HDINFO *hdInfo)
 {
     uint32_t i;
 
@@ -356,8 +364,8 @@ int8_t ATA_ReadDriveInfo()
     /* read the useful drive data to the union */
     for(i=0; i < HDINFO_SIZE_WORDS; i++)
     {
-#if defined(ATA_USE_ID)
         uint16_t idword;
+        uint16_t *infostrptr;
         idword = getAtaRegWord(ATA_ADDR_DATA);
 
  #ifdef HD_INFO_DBG
@@ -369,71 +377,42 @@ int8_t ATA_ReadDriveInfo()
         switch(i)
         {
         case ATA_DRVINFOWORD_CYLS:
-            hd0info.cyls = idword;
+            hdInfo->cyls = idword;
             break;
         case ATA_DRVINFOWORD_HEADS:
-            hd0info.heads = idword;
+            hdInfo->heads = idword;
             break;
         case ATA_DRVINFOWORD_SECTORS:
-            hd0info.sectors = idword;
+            hdInfo->sectors = idword;
             break;
         default:
-            if( (i>= ATA_DRVINFOWORD_MODELSTART) &&
-                (i < (ATA_DRVINFOWORD_MODELSTART + ATA_DRVINFOWORD_MODELLENGTH)) )
+            if( (i>= ATA_DRVINFOWORD_MODEL_START) &&
+                (i < (ATA_DRVINFOWORD_MODEL_START + ATA_DRVINFOWORD_MODEL_LEN)) )
             {
-                hd0info.model[i-ATA_DRVINFOWORD_MODELSTART] = BYTE_SWAP_16(idword);
+                infostrptr = (uint16_t*)hdInfo->model;
+                infostrptr[i-ATA_DRVINFOWORD_MODEL_START] = BYTE_SWAP_16(idword);
             }
-            else if( (i>= ATA_DRVINFOWORD_REVSTART) &&
-                     (i < (ATA_DRVINFOWORD_REVSTART + ATA_DRVINFOWORD_REVLENGTH)) )
+            else if( (i>= ATA_DRVINFOWORD_REV_START) &&
+                     (i < (ATA_DRVINFOWORD_REV_START + ATA_DRVINFOWORD_REV_LEN)) )
             {
-                hd0info.fw_rev[i-ATA_DRVINFOWORD_REVSTART] = BYTE_SWAP_16(idword);
+                infostrptr = (uint16_t*)hdInfo->fwRev;
+                infostrptr[i-ATA_DRVINFOWORD_REV_START] = BYTE_SWAP_16(idword);
             }
-            else if( (i>= ATA_DRVINFOWORD_SERNUMSTART) &&
-                     (i < (ATA_DRVINFOWORD_SERNUMSTART + ATA_DRVINFOWORD_SERNUMLENGTH)) )
+            else if( (i>= ATA_DRVINFOWORD_SERNUM_START) &&
+                     (i < (ATA_DRVINFOWORD_SERNUM_START + ATA_DRVINFOWORD_SERNUM_LEN)) )
             {
-                hd0info.fw_rev[i-ATA_DRVINFOWORD_SERNUMSTART] = BYTE_SWAP_16(idword);
+                infostrptr = (uint16_t*)hdInfo->serialNum;
+                infostrptr[i-ATA_DRVINFOWORD_SERNUM_START] = BYTE_SWAP_16(idword);
             }
         }
-#else
-        getAtaRegWord(ATA_ADDR_DATA);
-#endif
     }
 
+    /* Terminate those info strings */
+    hdInfo->model[ATA_DRVINFO_MODEL_LEN-1] = 0;
+    hdInfo->fwRev[ATA_DRVINFO_REV_LEN-1] = 0;
+    hdInfo->serialNum[ATA_DRVINFO_SERNUM_LEN-1] = 0;
+
     return(ATA_OK);
-}
-
-#if defined(ATA_USE_ID)
-uint8_t *ATA_GetInfoModel()
-{
-    hd0info.model[ATA_DRVINFOWORD_MODELLENGTH-1] &= '\0';
-    return((uint8_t*)(hd0info.model));
-}
-
-uint8_t *ATA_GetInfoRev()
-{
-    hd0info.fw_rev[ATA_DRVINFOWORD_REVLENGTH-1] &= '\0';
-    return((uint8_t*)(hd0info.fw_rev));
-}
-
-uint8_t *ATA_GetInfoSerialNum()
-{
-    hd0info.serial_no[ATA_DRVINFOWORD_SERNUMLENGTH-1] = '\0';
-    return((uint8_t*)(hd0info.serial_no));
-}
-
-uint16_t ATA_GetInfoNumCyls()
-{
-    return(hd0info.cyls);
-}
-
-uint16_t ATA_GetInfoNumHeads()
-{
-    return(hd0info.heads);
-}
-
-uint16_t ATA_GetInfoNumSectors()
-{
-    return(hd0info.sectors);
 }
 #endif
 
@@ -697,7 +676,7 @@ static void writeLba(uint32_t lba)
 {
     register uint32_t byte1, byte2, byte3, byte4;
 
-    // little endian?
+    /* little endian */
     byte4 = (0xff & (lba>>24));
     byte3 = (0xff & (lba>>16));
     byte2 = (0xff & (lba>>8));

@@ -6,8 +6,8 @@ Description.. Header file with port, address and bitmask definitions
 ............. for the ATA interface on a PIC MCU
 -------------------------------------------------------------------*/
 
-#define ATA_USE_WIRINGTEST               1
-#define ATA_USE_ID 1
+#define ATA_USE_WIRINGTEST               0
+#define ATA_USE_ID                       1
 
 
 /* Return codes */
@@ -32,24 +32,10 @@ Description.. Header file with port, address and bitmask definitions
     x |= ((uint32_t)ATA_ReadSectorByte() << 16); \
     x |= ((uint32_t)ATA_ReadSectorByte() << 24)
 
-// TODO: sort this:
-/* leaving the HDINFO here in the header as it
- * will be part of API and remove getter functions
- * shortly:
- */
 
-/* Just use a small global structure with the most useful
-   drive info variables: */
-/* word numbers of useful info: */
-#define ATA_DRVINFOWORD_CYLS             1
-#define ATA_DRVINFOWORD_HEADS            3
-#define ATA_DRVINFOWORD_SECTORS          6
-#define ATA_DRVINFOWORD_MODELSTART       27
-#define ATA_DRVINFOWORD_MODELLENGTH      12
-#define ATA_DRVINFOWORD_REVSTART         23
-#define ATA_DRVINFOWORD_REVLENGTH        4
-#define ATA_DRVINFOWORD_SERNUMSTART      10
-#define ATA_DRVINFOWORD_SERNUMLENGTH     2
+#define ATA_DRVINFO_MODEL_LEN            25
+#define ATA_DRVINFO_REV_LEN              9
+#define ATA_DRVINFO_SERNUM_LEN           5
 
 #if defined(ATA_USE_ID)
 typedef struct
@@ -57,23 +43,17 @@ typedef struct
   uint16_t cyls;           /* "physical" cyls */
   uint16_t heads;          /* "physical" heads */
   uint16_t sectors;        /* "physical" sectors per track */
-  uint16_t model[ATA_DRVINFOWORD_MODELLENGTH];       /* 0 = not_specified */
-  uint16_t fw_rev[ATA_DRVINFOWORD_REVLENGTH];        /* 0 = not_specified */
-  uint16_t serial_no[ATA_DRVINFOWORD_SERNUMLENGTH];  /* 0 = not_specified */
+  uint8_t model[ATA_DRVINFO_MODEL_LEN];       /* 0 = not_specified */
+  uint8_t fwRev[ATA_DRVINFO_REV_LEN];        /* 0 = not_specified */
+  uint8_t serialNum[ATA_DRVINFO_SERNUM_LEN];  /* 0 = not_specified */
 } HDINFO;
 #endif
 
 /* API functions */
 int8_t ATA_Init(uint8_t);
 void ATA_DriveSelect(uint8_t);
-int8_t ATA_ReadDriveInfo(void);
 #if defined(ATA_USE_ID)
-uint8_t *ATA_GetInfoModel(void);
-uint8_t *ATA_GetInfoRev(void);
-uint8_t *ATA_GetInfoSerialNum(void);
-uint16_t ATA_GetInfoNumCyls(void);
-uint16_t ATA_GetInfoNumHeads(void);
-uint16_t ATA_GetInfoNumSectors(void);
+int8_t ATA_ReadDriveInfo(HDINFO *hdInfo);
 #endif
 int8_t ATA_SetSectorLBAForRead(uint32_t lba);
 uint8_t ATA_ReadSectorByte();
