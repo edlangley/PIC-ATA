@@ -98,60 +98,67 @@ void main(void)
     }
     else
     {
+        DirDesc testdirdesc;
         FD testfd;
         uint8_t databyte;
 
         printf("OK\n\r");
 
-        printf("\n\rRoot dir contents:\n\r");
-        retval = FAT32_DirLoadNextEntry();
-        while((retval == FAT32_OK) || (retval == FAT32_DIRENTRY_IS_DIR))
+        if(retval = FAT32_DirOpen(&testdirdesc, "\\") != FAT32_OK)
         {
-            printf("%-12s", FAT32_DirEntryName());
-            if(retval == FAT32_DIRENTRY_IS_DIR)
+            printf("Error %d\n\r", retval);
+        }
+        else
+        {
+            printf("\n\rRoot dir contents:\n\r");
+            retval = FAT32_DirLoadNextEntry(&testdirdesc);
+            while((retval == FAT32_OK) || (retval == FAT32_DIRENTRY_IS_DIR))
             {
-                printf("\t<dir>\n\r");
+                printf("%-12s", testdirdesc.currentDirEntryName);
+                if(retval == FAT32_DIRENTRY_IS_DIR)
+                {
+                    printf("\t<dir>\n\r");
+                }
+                else
+                {
+                    printf("\n\r");
+                }
+                retval = FAT32_DirLoadNextEntry(&testdirdesc);
+            }
+            if(retval != FAT32_EODIRENTRYS)
+            {
+                printf("Error %d loading next dir record\n\r", retval);
+            }
+
+            printf("\n\rRe-opening root dir: ");
+            if((retval = FAT32_DirOpen(&testdirdesc, "\\")) != FAT32_OK)
+            {
+                printf("Error %d\n\r", retval);
             }
             else
             {
+                printf("OK\n\r");
+            }
+
+            printf("\n\rOpening file HELLO.TXT: ");
+            if((retval = FAT32_FileOpen(&testfd, &testdirdesc, "HELLO.TXT")) != FAT32_OK)
+            {
+                printf("Error %d\n\r", retval);
+            }
+            else
+            {
+                printf("OK\n\r");
+
+                printf("\n\rPrinting file HELLO.TXT:\n\r");
+                retval = FAT32_FileRead(&testfd, 1, &databyte);
+                while(retval == FAT32_OK)
+                {
+                    printf("%c", databyte);
+                    retval = FAT32_FileRead(&testfd, 1, &databyte);
+                }
                 printf("\n\r");
             }
-            retval = FAT32_DirLoadNextEntry();
         }
-        if(retval != FAT32_EODIRENTRYS)
-        {
-            printf("Error %d loading next dir record\n\r", retval);
-        }
-
-        printf("\n\rRe-opening root dir: ");
-        if((retval = FAT32_DirOpen("\\")) != FAT32_OK)
-        {
-            printf("Error %d\n\r", retval);
-        }
-        else
-        {
-            printf("OK\n\r");
-        }
-
-        printf("\n\rOpening file HELLO.TXT: ");
-        if((retval = FAT32_FileOpen(&testfd, "HELLO.TXT")) != FAT32_OK)
-        {
-            printf("Error %d\n\r", retval);
-        }
-        else
-        {
-            printf("OK\n\r");
-
-            printf("\n\rPrinting file HELLO.TXT:\n\r");
-            retval = FAT32_FileRead(&testfd, 1, &databyte);
-            while(retval == FAT32_OK)
-            {
-                printf("%c", databyte);
-                retval = FAT32_FileRead(&testfd, 1, &databyte);
-            }
-        }
-
-        printf("\n\r");
     }
 #endif
 }
